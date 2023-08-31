@@ -1,0 +1,9 @@
+{"SSDP":"AirWick WiFi",
+"ssidAP":"AirWick",
+"passwordAP":"12345678",
+"ssid":"",
+"password":"",
+"timezone":5,
+"preTimer":1,
+"Interval":2,
+"lightTreshold":500}

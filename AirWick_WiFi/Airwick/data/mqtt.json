@@ -1,0 +1,121 @@
+{
+ "configs": [
+  "/config.setup.json",
+  "/config.mqtt.json"
+ ],
+ "title": [
+  {
+   "type": "text",
+   "class": "text-info",
+   "title": "<i class=\"settings-img\"></i> Настройка MQTT"
+  }
+ ],
+"class": "col-sm-offset-1 col-sm-10 col-md-offset-2 col-md-8 col-lg-offset-3 col-lg-6",
+ "content": [
+ {
+   "type": "h5",
+   "title": "{{SSDP}}",
+   "class": "alert-warning",
+   "style": "font-size:10px;width:100%"
+  },
+{
+   "type": "link",
+   "title": "Главная",
+   "action": "/",
+   "class": "btn btn-block btn-danger"
+  },
+  {
+   "type": "hr"
+  },
+  {
+   "type": "checkbox",
+   "class": "checkbox-big",
+   "name": "mq_on",
+   "title": "Использовать MQTT клиент",
+   "style": "font-size:20px; display:block",
+   "state": "{{mq_on}}"
+  },
+  {
+   "type":"hr"
+  },
+  {
+   "type": "h4",
+   "title": "IP адрес MQTT брокера"
+  },
+  {
+   "type": "input",
+   "title": "IP адрес MQTT брокера",
+   "name": "mq_ip",
+   "state": "{{mq_ip}}",
+   "pattern": "[0-9a-zA-Zа-яА-Я.\\_ ]{1,31}"
+  },
+  {
+   "type": "hr"
+  },
+  {
+   "type": "h4",
+   "title": "Порт MQTT брокера"
+  },
+  {
+   "type": "input",
+   "title": "Порт MQTT брокера",
+   "name": "mq_port",
+   "state": "{{mq_port}}",
+   "pattern": "[0-9a-zA-Zа-яА-Я.\\_ ]{1,31}"
+  }, 
+  {
+   "type": "hr"
+  }, 
+   {
+   "type": "h4",
+   "title": "Пользователь MQTT брокера"
+  },  
+  {
+   "type": "input",
+   "title": "Пользователь MQTT брокера",
+   "name": "mq_ssid",
+   "state": "{{mq_ssid}}",
+   "pattern": "[0-9a-zA-Zа-яА-Я.\\_]{1,31}"
+  },
+  {
+   "type": "hr"
+  },
+ {
+   "type": "h4",
+   "title": "Пароль пользователя MQTT брокера"
+  },
+  {
+   "type": "password",
+   "title": "Пароль пользователя MQTT брокера",
+   "name": "mq_pass",
+   "state": "{{mq_pass}}",
+   "pattern": "[0-9a-zA-Zа-яА-Я.\\_ ]{1,31}"
+  },
+  {
+   "type": "hr"
+  },
+  {
+   "type": "h4",
+   "title": "id клиента MQTT брокера (к нему будет добавлен ESP.getChipId)"
+  },
+  {
+   "type": "input",
+   "title": "id клиента MQTT брокера (к нему будет добавлен ESP.getChipId)",
+   "name": "mq_id",
+   "state": "{{mq_id}}",
+   "pattern": "[0-9a-zA-Zа-яА-Я.\\_ ]{1,31}"
+  }, 
+  {
+   "type": "hr"
+  }, 
+  {
+   "type": "button",
+   "title": "Сохранить",
+   "class": "btn btn-block btn-success",
+   "action": "mqtt_save?mq_on=[[mq_on]]&mq_ip=[[mq_ip]]&mq_port=[[mq_port]]&mq_ssid=[[mq_ssid]]&mq_pass=[[mq_pass]]&mq_id=[[mq_id]]"
+  },
+  {
+   "type": "hr"
+  }
+ ]
+}

@@ -96,27 +96,9 @@ void handle_mqtt_save() {
   client.setServer(mqttServer.c_str(), mqttPort);
   connectToMqtt();
   HTTP.send(200, "text/plain", "OK");
+
+
 }
-
-// Установка значения порога освещения для включения таймеров  http://192.168.0.101/set_lightTreshold?val=1
-void handle_set_lightTreshold() {
-  lightTreshold=HTTP.arg("val").toInt();// Получаем значение порога освещения для включения таймеров
-  jsonWrite(configSetup, "lightTreshold", lightTreshold); // Получаем значение порога освещения из запроса конвертируем в int сохраняем
-  saveConfig();
-  HTTP.send(200, "text/plain", "OK");
-}
-
-// Установка значения энергосберегающего режима  http://192.168.0.101/lowpwr?onoff=1&mode=0
-void handle_lowpower() {
-  lowPower=HTTP.arg("onoff").toInt();// включение и отключение режима
-  jsonWrite(configSetup, "lowPWR", lowPower); // сохраняем в json
-  saveConfig();
-  if (client.connected()){
-
-  }
-  HTTP.send(200, "text/plain", "OK");
-} 
-
   void setup() {
     Serial.begin(115200);
     delay(5);
@@ -144,7 +126,6 @@ void handle_lowpower() {
     clientID = jsonRead(mqttconfigJson, "mq_id");
     useMQTT = jsonReadtoInt(mqttconfigJson, "mq_on");
     //чтение порогового значения датчика света
-    lightTreshold = jsonReadtoInt(configSetup, "lightTreshold");
     lowPower = jsonReadtoInt(configSetup, "lowPWR");
     if (lightTreshold==0) lightTreshold=600; 
     //Запускаем WIFI
@@ -157,6 +138,8 @@ void handle_lowpower() {
     SSDP_init();
     //Настраиваем и запускаем HTTP интерфейс
     HTTP_init();
+    //
+    User_setings();
     // Подключение к MQTT-серверу
     client.setServer(mqttServer.c_str(), mqttPort);
     client.setCallback(mqttCallback);

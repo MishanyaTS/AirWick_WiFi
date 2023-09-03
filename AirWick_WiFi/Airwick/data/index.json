@@ -3,7 +3,7 @@
   "/config.setup.json"
  ],
  "title": [
-{
+  {
    "type": "text",
    "class": "text-info",
    "title": "Главная"
@@ -11,7 +11,7 @@
  ],
  "class": "col-sm-offset-1 col-sm-10 col-md-offset-2 col-md-8 col-lg-offset-3 col-lg-6",
  "content": [
-{
+  {
    "type": "h5",
    "title": "{{SSDP}}",
    "class": "alert-warning",
@@ -58,17 +58,38 @@
   },
   {
    "type": "range",
-   "name": "lightTreshold",
-   "title": "Порог срабатывания датчика света ({{lightTreshold}})",
-   "state": "{{lightTreshold}}",
-   "pattern": "min=10 max=1000 step=10"
+   "name": "light",
+   "title": "Порог срабатывания датчика света ({{light}})",
+   "state": "{{light}}",
+   "pattern": "min=10 max=1024 step=10",
+   "action": "light?light=[[light]]"
   },
   {
    "type": "button",
-   "title": "Сохранить",
-   "action": "set_lightTreshold?val=[[lightTreshold]]",
-   "class": "btn btn-block btn-success",
-   "style": "width:100%;display:inline"
+   "title": "<",
+   "action": "lightm",
+   "class": "btn-primary",
+   "style": "width:10%;display:inline"
+  },
+  {
+   "type": "button",
+   "title": ">",
+   "action": "lightp",
+   "class": "btn-primary",
+   "style": "width:10%;float:right"
+  },
+  {
+   "type": "hr"
+  },
+  {
+   "type": "checkbox",
+   "class": "checkbox-big",
+   "name": "theme",
+   "title": "Темная тема",
+   "style": "font-size:20px",
+   "state": "{{tm}}",
+   "action": "tm?tm=[[theme]]",
+   "response": "/"
   },
   {
    "type": "hr"

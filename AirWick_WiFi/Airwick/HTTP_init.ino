@@ -2,8 +2,6 @@
 void HTTP_init(void) {
   //страница сохранения настроек mqtt
   HTTP.on("/mqtt_save", handle_mqtt_save);
-  HTTP.on("/set_lightTreshold", handle_set_lightTreshold);
-  HTTP.on("/lowpwr", handle_lowpower);
 
   // --------------------Выдаем данные configJson
   HTTP.on("/config.live.json", HTTP_GET, []() {

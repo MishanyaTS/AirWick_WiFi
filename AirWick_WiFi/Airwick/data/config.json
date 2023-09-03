@@ -4,6 +4,7 @@
 "ssid":"",
 "password":"",
 "timezone":5,
+"tm":1,
 "preTimer":1,
 "Interval":2,
-"lightTreshold":500}
+"light":500}

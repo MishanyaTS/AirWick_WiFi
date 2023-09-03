@@ -1,12 +1,12 @@
 void WIFIinit() {
-  // --------------------Получаем SSDP со страницы
+  // --------------------Получаем параметры WiFi со страницы
   HTTP.on("/ssid", HTTP_GET, []() {
   jsonWrite(configSetup, "ssid", HTTP.arg("ssid"));
   jsonWrite(configSetup, "password", HTTP.arg("password"));
   saveConfig();                 // Функция сохранения данных во Flash
   HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
   });
-   // --------------------Получаем SSDP со страницы
+   // --------------------Получаем параметры точки доступа со страницы
   HTTP.on("/ssidap", HTTP_GET, []() {
   jsonWrite(configSetup, "ssidAP", HTTP.arg("ssidAP"));
   jsonWrite(configSetup, "passwordAP", HTTP.arg("passwordAP"));

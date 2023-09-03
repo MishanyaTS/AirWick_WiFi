@@ -28,7 +28,7 @@ unsigned long pretimerStartTime = 0;   // Время старта предвар
 unsigned long timerStartTime = 0;      // Время старта таймера интервала распыления
 unsigned long timerDuration = 240000;  // Длительность таймера (120 секунд)
 unsigned long preTimer = 60000;        // Длительность таймера (60 секунд)
-uint16_t lightTreshold = 600;          // Порог срабатывания датчика света
+uint16_t lightTreshold = 500;          // Порог срабатывания датчика света
 bool workmode = false;                 // флаг запуска таймера режима распыления
 int lightLevel;                        // Уровень освещения
 
@@ -126,8 +126,9 @@ void handle_mqtt_save() {
     clientID = jsonRead(mqttconfigJson, "mq_id");
     useMQTT = jsonReadtoInt(mqttconfigJson, "mq_on");
     //чтение порогового значения датчика света
+    lightTreshold = jsonReadtoInt(configSetup, "light");
     lowPower = jsonReadtoInt(configSetup, "lowPWR");
-    if (lightTreshold==0) lightTreshold=600; 
+    if (lightTreshold==0) lightTreshold=500; 
     //Запускаем WIFI
     WIFIinit();
     // Получаем время из сети

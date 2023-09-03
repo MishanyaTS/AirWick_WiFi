@@ -3,8 +3,8 @@ void User_setings () {
 HTTP.on("/light", handle_lightTreshold);    // Порог освещения
 HTTP.on("/lightm", handle_lightTresholdm);  // Пошаговый порог освещения минус
 HTTP.on("/lightp", handle_lightTresholdp);  // Порог освещения освещения плюс
-HTTP.on("/lowpwr", handle_lowpower);            // Установка значения энергосберегающего режима
-HTTP.on("/tm", handle_tm);                      // Смена темы страници (0 - светлая / 1 - тёмная)
+HTTP.on("/lowpwr", handle_lowpower);        // Установка значения энергосберегающего режима
+HTTP.on("/tm", handle_tm);                  // Смена темы страници (0 - светлая / 1 - тёмная)
 
 }
 // Порог освещения  http://192.168.0.101/light?light=1
@@ -39,7 +39,7 @@ void handle_lowpower() {
   HTTP.send(200, "text/plain", "OK");
 } 
 
-// Смена темы страници
+// Смена темы страницы
 void handle_tm ()   {
   bool flg = false;
   jsonWrite(configSetup, "tm", HTTP.arg("tm").toInt());

@@ -15,7 +15,7 @@ ESP8266WebServer HTTP(80);
 // Для файловой системы
 File fsUploadFile;
 
-#define FLL_VERSION (" Ver.1.0")
+#define FLL_VERSION (" Ver.1.1")
 
 const int lightSensorPin = A0;  // Пин, к которому подключен датчик света
 const int motorPin = D1;        // Пин, к которому подключен мотор

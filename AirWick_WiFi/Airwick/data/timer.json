@@ -17,12 +17,6 @@
    "class":"alert-warning",
    "style": "font-size:10px;width:100%"
   },
-{
-   "type": "link",
-   "title": "Главная",
-   "action": "/",
-   "class": "btn btn-block btn-danger"
-  },
   {
    "type": "hr"
   },
@@ -34,14 +28,14 @@
   {
    "type": "range",
    "name": "pretimer",
-   "title": "Предварительный таймер ({{preTimer}} мин)",
+   "title": "Предварительный таймер {{preTimer}} мин",
    "state": "{{preTimer}}",
    "pattern": "min=1 max=10 step=1"
   },
   {
    "type": "range",
    "name": "intervaltimer",
-   "title": "Таймер срабатывания ({{Interval}} мин)",
+   "title": "Таймер срабатывания {{Interval}} мин",
    "state": "{{Interval}}",
    "pattern": "min=1 max=60 step=1"
   },

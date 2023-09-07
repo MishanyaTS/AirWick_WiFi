@@ -24,7 +24,7 @@ void SSDP_init(void) {
   SSDP.setModelNumber(jsonRead(configSetup, "SSDP") + FLL_VERSION);
   
   
-  SSDP.setModelURL("https://github.com/MishanyaTS/");
+  SSDP.setModelURL("https://github.com/MishanyaTS/AirWick_WiFi");
   SSDP.setManufacturer("MishanyaTS");
   SSDP.setManufacturerURL("https://github.com/MishanyaTS");
   SSDP.begin();

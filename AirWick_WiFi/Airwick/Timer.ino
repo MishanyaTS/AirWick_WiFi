@@ -1,9 +1,9 @@
 void Timer_init() {
-  HTTP.on("/setTimers", handle_set_timers);    // Установка значений таймеров
-  HTTP.on("/setpretimer", handle_set_pretimer);    // Установка значений предварительного таймера
-  HTTP.on("/setmaintimer", handle_set_maintimer);    // Установка значений таймер срабатывания
-  timerDuration=jsonReadtoInt(configSetup, "Interval")*60000;//читаем значение интервала из конфига и переводим в миллисекунды
-  preTimer=jsonReadtoInt(configSetup, "preTimer")*60000;//читаем значение предварительного таймера из конфига и переводим в миллисекунды
+  HTTP.on("/setTimers", handle_set_timers);                   // Установка значений таймеров
+  HTTP.on("/setpretimer", handle_set_pretimer);               // Установка значений предварительного таймера
+  HTTP.on("/setmaintimer", handle_set_maintimer);             // Установка значений таймер срабатывания
+  timerDuration=jsonReadtoInt(configSetup, "Interval")*60000; // Читаем значение интервала из конфига и переводим в миллисекунды
+  preTimer=jsonReadtoInt(configSetup, "preTimer")*60000;      // Читаем значение предварительного таймера из конфига и переводим в миллисекунды
 }
 
 // Установка значений таймеров запросу вида http://192.168.0.101/setTimers?pretimer=1&interval=4

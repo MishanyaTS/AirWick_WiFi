@@ -18,12 +18,6 @@
    "class": "alert-warning",
    "style": "font-size:10px;width:100%"
   },
-{
-   "type": "link",
-   "title": "Главная",
-   "action": "/",
-   "class": "btn btn-block btn-danger"
-  },
   {
    "type": "hr"
   },
@@ -96,11 +90,11 @@
   },
   {
    "type": "h4",
-   "title": "id клиента MQTT брокера (к нему будет добавлен ESP.getChipId)"
+   "title": "id клиента MQTT брокера"
   },
   {
    "type": "input",
-   "title": "id клиента MQTT брокера (к нему будет добавлен ESP.getChipId)",
+   "title": "id клиента MQTT брокера",
    "name": "mq_id",
    "state": "{{mq_id}}",
    "pattern": "[0-9a-zA-Zа-яА-Я.\\_ ]{1,31}"

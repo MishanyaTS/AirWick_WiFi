@@ -19,13 +19,7 @@
    "class": "alert-warning",
    "style": "font-size:10px;width:100%"
   },
-  {
-   "type": "link",
-   "title": "Главная",
-   "action": "/",
-   "class": "btn btn-block btn-danger"
-  },
-  {
+ {
    "type": "hr"
   },
   {

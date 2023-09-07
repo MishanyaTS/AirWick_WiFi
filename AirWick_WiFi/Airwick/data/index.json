@@ -21,27 +21,6 @@
    "type": "hr"
   },
   {
-   "type": "link",
-   "title": "<i class=\"settings-img\"></i> Конфигурация",
-   "action": "/index.htm?setup",
-   "class": "btn btn-block btn-danger"
-  },
-  {
-   "type": "link",
-   "title": "<i class=\"alarm-img\"></i> Настройка таймеров",
-   "action": "/index.htm?timer",
-   "class": "btn btn-block btn-info"
-  },
-  {
-   "type": "link",
-   "title": "<i class=\"settings-img\"></i> Настройки MQTT",
-   "action": "/index.htm?mqtt",
-   "class": "btn btn-block btn-info"
-  },
-  {
-   "type": "hr"
-  },
-  {
    "type": "button",
    "title": "Распылить",
    "action": "/motor",
@@ -59,7 +38,7 @@
   {
    "type": "range",
    "name": "light",
-   "title": "Порог срабатывания датчика света ({{light}})",
+   "title": "Порог срабатывания датчика света ({{light}}). Шаг 10",
    "state": "{{light}}",
    "pattern": "min=10 max=1024 step=10",
    "action": "light?light=[[light]]"

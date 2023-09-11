@@ -1,4 +1,4 @@
-void User_setings () {
+void User_setings() {
   
 HTTP.on("/light", handle_lightTreshold);    // Порог освещения
 HTTP.on("/lightm", handle_lightTresholdm);  // Пошаговый порог освещения минус

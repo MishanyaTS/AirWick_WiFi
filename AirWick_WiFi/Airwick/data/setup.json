@@ -188,20 +188,8 @@
    "class": "btn btn-block btn-success",
    "action": "lowpwr?onoff=[[lowpwr]]"
   },
-{
-"type":"hr"
-},
   {
-   "type": "link",
-   "title": "<i class=\"article-img\"></i> Редактор",
-   "action": "/edit",
-   "class": "btn btn-block btn-warning"
-  },
-  {
-   "type": "link",
-   "title": "<i class=\"downl-img\"></i> Обновление ПО",
-   "action": "/update.htm?",
-   "class": "btn btn-block btn-info"
+  "type":"hr"
   },
   {
    "type": "link",

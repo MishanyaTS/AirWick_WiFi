@@ -1,34 +1,46 @@
 // ------------- Чтение значения json
 String jsonRead(String &json, String name) {
-  DynamicJsonBuffer jsonBuffer;
-  JsonObject& root = jsonBuffer.parseObject(json);
-  return root[name].as<String>();
+  DynamicJsonDocument jsonDoc(1024); // Увеличьте размер, если требуется
+  DeserializationError error = deserializeJson(jsonDoc, json);
+  if (error) {
+    return "";
+  }
+  return jsonDoc[name].as<String>();
 }
 
 // ------------- Чтение значения json
 int jsonReadtoInt(String &json, String name) {
-  DynamicJsonBuffer jsonBuffer;
-  JsonObject& root = jsonBuffer.parseObject(json);
-  return root[name];
+  DynamicJsonDocument jsonDoc(1024); // Увеличьте размер, если требуется
+  DeserializationError error = deserializeJson(jsonDoc, json);
+  if (error) {
+    return 0;
+  }
+  return jsonDoc[name].as<int>();
 }
 
 // ------------- Запись значения json String
 String jsonWrite(String &json, String name, String volume) {
-  DynamicJsonBuffer jsonBuffer;
-  JsonObject& root = jsonBuffer.parseObject(json);
-  root[name] = volume;
+  DynamicJsonDocument jsonDoc(1024); // Увеличьте размер, если требуется
+  DeserializationError error = deserializeJson(jsonDoc, json);
+  if (error) {
+    return "";
+  }
+  jsonDoc[name] = volume;
   json = "";
-  root.printTo(json);
+  serializeJson(jsonDoc, json);
   return json;
 }
 
 // ------------- Запись значения json int
 String jsonWrite(String &json, String name, int volume) {
-  DynamicJsonBuffer jsonBuffer;
-  JsonObject& root = jsonBuffer.parseObject(json);
-  root[name] = volume;
+  DynamicJsonDocument jsonDoc(1024); // Увеличьте размер, если требуется
+  DeserializationError error = deserializeJson(jsonDoc, json);
+  if (error) {
+    return "";
+  }
+  jsonDoc[name] = volume;
   json = "";
-  root.printTo(json);
+  serializeJson(jsonDoc, json);
   return json;
 }
 
@@ -64,45 +76,19 @@ String writeFile(String fileName, String strings ) {
   return "Write sucsses";
 }
 
-
 // Перегрузка функций
-// ------------- Создание данных для графика
-String graf(int datas, int points, int refresh, String options) {
-  String root = "{}";  // Формировать строку для отправки в браузер json формат
-  // {"data":[1],"points":"10","refresh":"1","title":"Analog"}
-  // Резервируем память для json обекта буфер может рости по мере необходимти, предпочтительно для ESP8266
-  DynamicJsonBuffer jsonBuffer;
-  // вызовите парсер JSON через экземпляр jsonBuffer
-  JsonObject& json = jsonBuffer.parseObject(root);
-  // Заполняем поля json
-  JsonArray& data = json.createNestedArray("data");
-  data.add(datas);
-  json["points"] = points;
-  json["refresh"] = refresh;
-  json["options"] = options;
-  //"options":"low:0,showLine: false,showArea:true,showPoint:false",
-  // Помещаем созданный json в переменную root
-  root = "";
-  json.printTo(root);
-  return root;
-}
-
 // --------------Создание данных для графика
 String graf(int datas, int points, int refresh) {
-  String root = "{}";  // Формировать строку для отправки в браузер json формат
-  // {"data":[1],"points":"10","refresh":"1","title":"Analog"}
-  // Резервируем память для json обекта буфер может рости по мере необходимти, предпочтительно для ESP8266
-  DynamicJsonBuffer jsonBuffer;
-  // вызовите парсер JSON через экземпляр jsonBuffer
-  JsonObject& json = jsonBuffer.parseObject(root);
+  DynamicJsonDocument jsonDoc(1024); // Увеличьте размер, если требуется
+  JsonObject json = jsonDoc.to<JsonObject>();
+
   // Заполняем поля json
-  JsonArray& data = json.createNestedArray("data");
+  JsonArray data = json.createNestedArray("data");
   data.add(datas);
   json["points"] = points;
   json["refresh"] = refresh;
-  //"options":"low:0,showLine: false,showArea:true,showPoint:false",
-  // Помещаем созданный json в переменную root
-  root = "";
-  json.printTo(root);
+
+  String root;
+  serializeJson(json, root);
   return root;
 }

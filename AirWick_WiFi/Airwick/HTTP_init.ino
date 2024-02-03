@@ -23,6 +23,7 @@ void HTTP_init(void) {
     String restart = HTTP.arg("device");          // Получаем значение device из запроса
     if (restart == "ok") {                         // Если значение равно Ок
       HTTP.send(200, "text / plain", "Reset OK"); // Oтправляем ответ Reset OK
+      delay(1000);
       ESP.restart();                                // перезагружаем модуль
     }
     else {                                        // иначе
@@ -38,7 +39,7 @@ void HTTP_init(void) {
     // Включаем мотор на 1 секунду
     Serial.println("Кнопка нажата в веб интерфейсе");
     digitalWrite(motorPin, HIGH);
-    delay(700);
+    delay(300);
     digitalWrite(motorPin, LOW);
 
     // Возвращаем ответ на страницу

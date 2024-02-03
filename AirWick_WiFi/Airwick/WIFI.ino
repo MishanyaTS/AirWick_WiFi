@@ -15,7 +15,7 @@ void WIFIinit() {
   });
 
 
-  // Попытка подключения к точке доступа
+   // Попытка подключения к точке доступа
   WiFi.mode(WIFI_STA);
   byte tries = 10;
   String _ssid = jsonRead(configSetup, "ssid");
@@ -48,6 +48,9 @@ void WIFIinit() {
     Serial.println("Подключено к Wi-Fi");
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
+
+    // Установка статического IP-адреса
+    WiFi.config(staticIP, gateway, subnet, dns);
   }
 }
 

@@ -34,6 +34,11 @@ String configSetup = "{}";
 String configJson = "{}";
 String mqttconfigJson = "{}";
 
+IPAddress staticIP(192, 168, 0, 105);      // Здесь указывается статический IP-адрес
+IPAddress gateway(192, 168, 0, 1);         // Здесь указывается IP-адрес шлюза
+IPAddress subnet(255, 255, 255, 0);        // Здесь указывается подсеть
+IPAddress dns(8, 8, 8, 8);                 // Здесь указывается IP-адрес DNS-сервера
+
 String mqttServer = "";
 int mqttPort = 1883;
 String mqttUser = "";
@@ -81,11 +86,11 @@ PubSubClient client(espClient);
     User_setings();
     // Подключение к MQTT-серверу
     init_mqtt();
-    // Инициализация построения графика
+    //Инициализация построения графика
     GRAF_init();
     lightLevel = analogRead(lightSensorPin);
   }
-
+   
   void loop() {
     HTTP.handleClient();
     delay(1);
@@ -117,7 +122,7 @@ PubSubClient client(espClient);
       // Кнопка нажата, запустить мотор на 1 секунду
       Serial.println("Кнопка нажата");
       digitalWrite(motorPin, HIGH);
-      delay(700);
+      delay(300);
       digitalWrite(motorPin, LOW);
     }
 
@@ -141,7 +146,7 @@ PubSubClient client(espClient);
       }
       Serial.println("Распыление!");  //выводим в консоль, что мотор заработал
       digitalWrite(motorPin, HIGH);  // Запускаем мотор на 1 секунду
-      delay(700);
+      delay(300);
       digitalWrite(motorPin, LOW);  // Выключаем мотор
     }
     // Проверка подключения к MQTT-серверу

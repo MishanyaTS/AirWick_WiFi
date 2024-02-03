@@ -4,7 +4,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     if (payload[0] == '1') {
       Serial.println("Распыление удалённо!"); //выводим в консоль, что мотор заработал
       digitalWrite(motorPin, HIGH);  // Включение мотора
-      delay(700);
+      delay(300);
       digitalWrite(motorPin, LOW);  // Выключение мотора
     }
   }

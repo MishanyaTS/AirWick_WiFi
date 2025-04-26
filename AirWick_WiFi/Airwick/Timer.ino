@@ -1,31 +1,80 @@
 void Timer_init() {
-  HTTP.on("/setTimers", handle_set_timers);                   // Установка значений таймеров
-  HTTP.on("/setpretimer", handle_set_pretimer);               // Установка значений предварительного таймера
-  HTTP.on("/setmaintimer", handle_set_maintimer);             // Установка значений таймер срабатывания
-  timerDuration=jsonReadtoInt(configSetup, "Interval")*60000; // Читаем значение интервала из конфига и переводим в миллисекунды
-  preTimer=jsonReadtoInt(configSetup, "preTimer")*60000;      // Читаем значение предварительного таймера из конфига и переводим в миллисекунды
+  HTTP.on("/setPreTimers", handle_Pretimers);   // Установка значений предварительного таймера
+  HTTP.on("/setpretimer", handle_pretimer);     // Установка значений предварительного таймера  
+  HTTP.on("/preTimerm", handle_preTimerm);      // Обработчик для уменьшения предтаймера
+  HTTP.on("/preTimerp", handle_preTimerp);      // Обработчик для увеличения предтаймера 
+   
+  HTTP.on("/setTimers", handle_timers);         // Установка значений таймера срабатывания      
+  HTTP.on("/setmaintimer", handle_maintimer);   // Установка значений таймера срабатывания
+  HTTP.on("/Timerm", handle_Timerm);            // Обработчик для уменьшения таймера
+  HTTP.on("/Timerp", handle_Timerp);            // Обработчик для увеличения таймера
+
 }
 
-// Установка значений таймеров запросу вида http://192.168.0.101/setTimers?pretimer=1&interval=4
-void handle_set_timers() {
-  int temppre=HTTP.arg("pretimer").toInt();// Получаем значение pretimer из запроса конвертируем в int
-  int tempint=HTTP.arg("interval").toInt();// Получаем значение interval из запроса конвертируем в int
-  jsonWrite(configSetup, "preTimer", temppre); // сохраняем в json
-  jsonWrite(configSetup, "Interval", tempint);  //сохраняем в json
-  preTimer=temppre*60000;//переводим в миллисекунды и присваиваем новое значение таймеру интервала
-  timerDuration=tempint*60000;//переводим в миллисекунды и присваиваем новое значение таймеру срабатывания
+// Установка значений предварительного таймера
+void handle_Pretimers() {
+  int temppre = HTTP.arg("pretimer").toInt();
+  savePreTimers(temppre);
+  preTimer = temppre * 60000;
+  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
+}
+// Функция для сохранения таймеров в JSON
+void savePreTimers(int preTimerValue) {
+  jsonWrite(configSetup, "preTimer", preTimerValue);
   saveConfig();
-  HTTP.send(200, ("application/json"), ("{\"should_refresh\": \"true\"}"));
+}
+// Установка значений предварительного таймера
+void handle_pretimer() {
+  preTimer = HTTP.arg("val").toInt() * 60000;
+  jsonWrite(configSetup, "preTimer", preTimer / 60000); // сохраняя в минутах
+  saveConfig();
+  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
+}
+// Обработчик уменьшения предтаймера
+void handle_preTimerm() {
+  preTimer = constrain(preTimer - 1 * 60000, 1 * 60000, 10 * 60000);
+  jsonWrite(configSetup, "preTimer", preTimer / 60000); // Сохраняем в минутах
+  saveConfig();
+  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
+}
+// Обработчик увеличения предтаймера
+void handle_preTimerp() {
+  preTimer = constrain(preTimer + 1 * 60000, 1 * 60000, 10 * 60000);
+  jsonWrite(configSetup, "preTimer", preTimer / 60000); // Сохраняем в минутах
+  saveConfig();
+  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
 }
 
-// Установка значений таймеров запросу вида http://192.168.0.101/setpretimer?val=1
-void handle_set_pretimer() {
-  preTimer=HTTP.arg("val").toInt()*60000;// Получаем значение pretimer из запроса конвертируем, переводим в миллисекунды и присваиваем новое значение предварительному таймеру 
-  HTTP.send(200, ("application/json"), ("{\"should_refresh\": \"true\"}"));
+// Установка значений таймера срабатывания
+void handle_timers() {
+  int tempint = HTTP.arg("interval").toInt();
+  saveTimers(tempint);
+  timerDuration = tempint * 60000;
+  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
 }
-
-// Установка значений таймеров запросу вида http://192.168.0.101/setmaintimer?val=1
-void handle_set_maintimer() {
-  timerDuration=HTTP.arg("val").toInt()*60000;// Получаем значение maintimer из запроса конвертируем, переводим в миллисекунды и присваиваем новое значение таймеру срабатывания 
-  HTTP.send(200, ("application/json"), ("{\"should_refresh\": \"true\"}"));
+// Функция для сохранения таймеров в JSON
+void saveTimers(int timerDurationValue) {
+  jsonWrite(configSetup, "Interval", timerDurationValue);
+  saveConfig();
+}
+// Установка значений таймера срабатывания
+void handle_maintimer() {
+  timerDuration = HTTP.arg("val").toInt() * 60000;
+  jsonWrite(configSetup, "Interval", timerDuration / 60000); // сохраняя в минутах
+  saveConfig();
+  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
+}
+// Обработчик уменьшения предтаймера
+void handle_Timerm() {
+  timerDuration = constrain(timerDuration - 1 * 60000, 1 * 60000, 60 * 60000);
+  jsonWrite(configSetup, "Interval", timerDuration / 60000); // Сохраняем в минутах
+  saveConfig();
+  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
+}
+// Обработчик увеличения предтаймера
+void handle_Timerp() {
+  timerDuration = constrain(timerDuration + 1 * 60000, 1 * 60000, 60 * 60000);
+  jsonWrite(configSetup, "Interval", timerDuration / 60000); // Сохраняем в минутах
+  saveConfig();
+  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
 }

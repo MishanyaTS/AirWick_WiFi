@@ -6,6 +6,7 @@
   {
    "type": "text",
    "class": "text-info",
+   "style": "color:#16d3f2;text-shadow: #16d3f2 5px 0 50px",
    "title": "Главная"
   }
  ],
@@ -15,25 +16,79 @@
    "type": "h5",
    "title": "{{SSDP}}",
    "class": "alert-warning",
-   "style": "font-size:10px;width:100%"
+   "style": "width:100%;border-radius:50px;padding:8px 10px 9px 10px;border:none;background-image: linear-gradient(to bottom right, blue, pink);box-shadow: 1px 1px 17px 5px blue"
   },
   {
-   "type": "hr"
+   "type": "hr",
+   "style": "border: 0; height: 1px; background-color:#335;width:100%"
   },
   {
    "type": "button",
    "title": "Распылить",
    "action": "/motor",
    "class": "btn-block btn-success",
-   "style": "width:100%;display:inline"
+   "style": "border:none;display:inline;text-align:center;border-radius:10px;background: linear-gradient(to right, #936464 0%,#0f547f 50%,#3b0056 89%,#281011 100%)"
   },
   {
-   "type": "hr"
+   "type": "h2",
+   "title": " Настройка таймеров",
+   "style": "font-size:25px"
   },
   {
-   "type": "chart",
-   "title": "Датчик света - ",
-   "state": "analog.json"
+   "type": "hr",
+   "style": "border: 0; height: 1px; background-color:#335;width:50%"
+  },
+  {
+   "type": "range",
+   "name": "pretimer",
+   "title": "Предварительный таймер {{preTimer}} мин",
+   "state": "{{preTimer}}",
+   "pattern": "min=1 max=10 step=1",
+   "action": "setPreTimers?pretimer=[[pretimer]]"
+  },
+  {
+   "type": "button",
+   "title": "◀",
+   "action": "preTimerm",
+   "class": "btn-primary",
+   "style": "font-size:12px;width:10%;display:inline;color:#16d3f2;border-color:#a8a8b7;border-width:1px;border-radius:4px;background: linear-gradient(to right,  #333333 0%,#28343b 50%,#333333 100%);text-align:center;text-shadow: #16d3f2 1px 0 10px"
+  },
+  {
+   "type": "button",
+   "title": "▶",
+   "action": "preTimerp",
+   "class": "btn-primary",
+   "style": "font-size:12px;width:10%;float:right;color:#16d3f2;border-color:#a8a8b7;border-width:1px;border-radius:4px;background: linear-gradient(to right,  #333333 0%,#28343b 50%,#333333 100%);text-align:center;text-shadow: #16d3f2 1px 0 10px"
+  },
+  {
+   "type": "hr",
+   "style": "border: 0; height: 1px; background-color:#335;width:50%"
+  },
+  {
+   "type": "range",
+   "name": "intervaltimer",
+   "title": "Таймер срабатывания {{Interval}} мин",
+   "state": "{{Interval}}",
+   "pattern": "min=1 max=60 step=1",
+   "action": "setTimers?interval=[[intervaltimer]]"
+  },
+  {
+   "type": "button",
+   "title": "◀",
+   "action": "Timerm",
+   "class": "btn-primary",
+   "style": "font-size:12px;width:10%;display:inline;color:#16d3f2;border-color:#a8a8b7;border-width:1px;border-radius:4px;background: linear-gradient(to right,  #333333 0%,#28343b 50%,#333333 100%);text-align:center;text-shadow: #16d3f2 1px 0 10px"
+  },
+  {
+   "type": "button",
+   "title": "▶",
+   "action": "Timerp",
+   "class": "btn-primary",
+   "style": "font-size:12px;width:10%;float:right;color:#16d3f2;border-color:#a8a8b7;border-width:1px;border-radius:4px;background: linear-gradient(to right,  #333333 0%,#28343b 50%,#333333 100%);text-align:center;text-shadow: #16d3f2 1px 0 10px"
+  },
+  {
+   "type": "hr",
+   "style": "border: 0; height: 1px; background-color:#335"
   },
   {
    "type": "range",
@@ -45,33 +100,30 @@
   },
   {
    "type": "button",
-   "title": "<",
+   "title": "◀",
    "action": "lightm",
    "class": "btn-primary",
-   "style": "width:10%;display:inline"
+   "style": "font-size:12px;width:10%;display:inline;color:#16d3f2;border-color:#a8a8b7;border-width:1px;border-radius:4px;background: linear-gradient(to right,  #333333 0%,#28343b 50%,#333333 100%);text-align:center;text-shadow: #16d3f2 1px 0 10px"
   },
   {
    "type": "button",
-   "title": ">",
+   "title": "▶",
    "action": "lightp",
    "class": "btn-primary",
-   "style": "width:10%;float:right"
+   "style": "font-size:12px;width:10%;float:right;color:#16d3f2;border-color:#a8a8b7;border-width:1px;border-radius:4px;background: linear-gradient(to right,  #333333 0%,#28343b 50%,#333333 100%);text-align:center;text-shadow: #16d3f2 1px 0 10px"
   },
   {
-   "type": "hr"
+   "type": "hr",
+   "style": "border: 0; height: 1px; background-color:#335"
   },
   {
-   "type": "checkbox",
-   "class": "checkbox-big",
-   "name": "theme",
-   "title": "Темная тема",
-   "style": "font-size:20px",
-   "state": "{{tm}}",
-   "action": "tm?tm=[[theme]]",
-   "response": "/"
+   "type": "chart",
+   "title": "Датчик света - ",
+   "state": "analog.json"
   },
   {
-   "type": "hr"
+   "type": "hr",
+   "style": "border: 0; height: 5px; background-color:#335;width:100%"
   }
  ]
 }

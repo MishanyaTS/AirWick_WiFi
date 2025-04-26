@@ -2,11 +2,10 @@ void User_setings() {
   
 HTTP.on("/light", handle_lightTreshold);    // Порог освещения
 HTTP.on("/lightm", handle_lightTresholdm);  // Пошаговый порог освещения минус
-HTTP.on("/lightp", handle_lightTresholdp);  // Порог освещения освещения плюс
-HTTP.on("/lowpwr", handle_lowpower);        // Установка значения энергосберегающего режима
-HTTP.on("/tm", handle_tm);                  // Смена темы страници (0 - светлая / 1 - тёмная)
+HTTP.on("/lightp", handle_lightTresholdp);  // Пошаговый порог освещения плюс
+HTTP.on("/set_ip", handle_set_static_ip);   // Установки статичного IP адреса
 }
-// Порог освещения  http://192.168.0.101/light?light=1
+// Порог освещения
 void handle_lightTreshold() {
   jsonWrite(configSetup, "light", HTTP.arg("light").toInt()); // Получаем значение порога освещения из запроса конвертируем в int сохраняем
   lightTreshold = jsonReadtoInt(configSetup, "light");
@@ -21,39 +20,38 @@ void handle_lightTresholdm() {
   HTTP.send(200, ("application/json"), ("{\"should_refresh\": \"true\"}"));
 }
 
-// Порог освещения освещения плюс
+// Пошаговый порог освещения плюс
 void handle_lightTresholdp() {
   lightTreshold = constrain(lightTreshold + 10, 10, 1024);
   jsonWrite(configSetup, "light", lightTreshold);
   HTTP.send(200, ("application/json"), ("{\"should_refresh\": \"true\"}"));
 }
 
-// Установка значения энергосберегающего режима  
-void handle_lowpower() {
-  lowPower=HTTP.arg("onoff").toInt();// включение и отключение режима
-  jsonWrite(configSetup, "lowPWR", lowPower); // сохраняем в json
-  saveConfig();
-  if (client.connected()){
-  }
-  HTTP.send(200, "text/plain", "OK");
-} 
+void init_ip(){
+  String configIP = readFile("config_ip.json", 512);
+  Serial.println(configIP);
+  use_static_ip = jsonReadtoInt(configIP, "ip_on");
+  Static_IP.fromString(jsonRead(configIP, "ip"));
+  Gateway.fromString(jsonRead(configIP, "gateway"));
+  Subnet.fromString(jsonRead(configIP, "subnet"));
+  DNS1.fromString(jsonRead(configIP, "dns"));
+}
 
-// Смена темы страницы
-void handle_tm ()   {
-  bool flg = false;
-  jsonWrite(configSetup, "tm", HTTP.arg("tm").toInt());
-  if (jsonReadtoInt(configSetup, "tm")) flg = FileCopy (("/css/dark/build.css.gz") , ("/css/build.css.gz"));
-  else flg = FileCopy (("/css/light/build.css.gz") , ("/css/build.css.gz"));
-  if (flg) {
-       HTTP.send(200, ("text/plain"), ("OK"));
-     saveConfig();
-    }
-  else HTTP.send(404, ("text/plain"), "File not found");  
+void handle_set_static_ip ()   {
+    String configIP = readFile("config_ip.json", 2048);
+    use_static_ip = HTTP.arg("ip_on").toInt();
+    jsonWrite(configIP, "ip_on", use_static_ip);
+    jsonWrite(configIP, "ip", HTTP.arg("ip1"));
+    jsonWrite(configIP, "gateway", HTTP.arg("gateway"));
+    jsonWrite(configIP, "subnet", HTTP.arg("subnet"));
+    jsonWrite(configIP, "dns", HTTP.arg("dns"));
+    writeFile("config_ip.json", configIP );
+    HTTP.send(200, ("application/json"), ("{\"should_refresh\": \"true\"}"));
 }
 
 bool FileCopy (const String& SourceFile , const String& TargetFile)   {
-    File S_File = SPIFFS.open( SourceFile, "r");
-    File T_File = SPIFFS.open( TargetFile, "w");
+    File S_File = LittleFS.open( SourceFile, "r");
+    File T_File = LittleFS.open( TargetFile, "w");
     if (!S_File || !T_File) 
   return false;
     size_t size = S_File.size();
@@ -66,3 +64,4 @@ bool FileCopy (const String& SourceFile , const String& TargetFile)   {
     T_File.close();
     return true;
 }
+//https://arduino.esp8266.com/stable/package_esp8266com_index.json

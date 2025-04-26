@@ -50,7 +50,7 @@ void saveConfig (){
 
 // ------------- Чтение файла в строку
 String readFile(String fileName, size_t len ) {
-  File configFile = SPIFFS.open("/" + fileName, "r");
+  File configFile = LittleFS.open("/" + fileName, "r");
   if (!configFile) {
     return "Failed";
   }
@@ -66,7 +66,7 @@ String readFile(String fileName, size_t len ) {
 
 // ------------- Запись строки в файл
 String writeFile(String fileName, String strings ) {
-  File configFile = SPIFFS.open("/" + fileName, "w");
+  File configFile = LittleFS.open("/" + fileName, "w");
   if (!configFile) {
     return "Failed to open config file";
   }

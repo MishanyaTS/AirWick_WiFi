@@ -8,6 +8,7 @@
   {
    "type": "text",
    "class": "text-info",
+"style": "color:#16d3f2;text-shadow: #16d3f2 5px 0 50px",
    "title":"<i class=\"settings-img\"></i> Конфигурация"
   }
  ],
@@ -17,67 +18,88 @@
    "type": "h5",
    "title": "{{SSDP}}",
    "class": "alert-warning",
-   "style": "font-size:10px;width:100%"
+   "style": "font-size:10px;width:100%;text-align:center;border-radius:50px;padding:8px 10px 9px 10px;background-image: linear-gradient(to bottom right, blue, pink);box-shadow: 1px 1px 17px 5px blue"
   },
  {
-   "type": "hr"
+   "type": "hr",
+   "style": "border: 0; height: 1px; background-color: #335"
   },
   {
    "type": "h2",
-   "title": "Имя устройства"
+   "title": "Имя устройства",
+  "style": "font-size:25px"
   },
   {
    "type": "input",
    "title": "Имя устройства",
-   "name": "ssdp",
+   "name":"ssdp",
    "state": "{{SSDP}}",
-   "pattern": "[0-9a-zA-Zа-яА-Я.\\- ]{1,20}"
+   "pattern": "[0-9a-zA-Zа-яА-Я.\\- ]{1,31}",
+   "style": "text-align:center;display:inline;border-radius:10px"
   },
   {
    "type": "button",
    "title": "Сохранить",
    "action": "ssdp?ssdp=[[ssdp]]",
-   "class": "btn btn-block btn-success"
+   "class": "btn btn-block btn-success",
+   "style": "display:inline;text-align:center;border-radius:10px;background: linear-gradient(135deg, #006e2e 0%,#00c42a 0%,#006e2e 50%,#00c42a 100%)"
   },
   {
-   "type": "hr"
+   "type": "hr",
+   "style": "border: 0; height: 1px; background-color: #335"
   },
   {
    "type": "h2",
-   "title": "Подключение к Wi-Fi роутеру"
+   "title": "Подключение к Wi-Fi роутеру",
+ "style": "font-size:25px"
+  },
+   {
+   "type": "h4",
+   "title": "Имя сети",
+   "style": "font-size:15px;float:left;text-align:center;width:50%;display:inline"
+  },
+  {
+   "type": "h4",
+   "title": "Пароль",
+   "style": "font-size:15px;float:right;text-align:center;width:50%;display:inline"
   },
   {
    "type": "input",
-   "title": "Сеть",
-   "name": "ssid",
+   "title":"Имя сети",
+   "name":"ssid",
    "state": "{{ssid}}",
-   "pattern": "[0-9a-zA-Zа-яА-Я.\\- ]{1,20}"
+   "style": "width:50%;text-align:center;display:inline;border-radius:8px",
+   "pattern": ".{1,31}"
   },
   {
    "type": "password",
-   "title": "Введите пароль",
-   "name": "ssidPass",
+   "title": "Пароль",
+   "name":"ssidPass",
    "state": "{{password}}",
-   "pattern": ".{8,20}"
+   "style": "width:50%;text-align:center;display:inline;border-radius:8px",
+   "pattern": ".{8,63}"
   },
   {
    "type": "button",
    "title": "Сохранить",
    "class": "btn btn-block btn-success",
+ "style": "display:inline;text-align:center;border-radius:10px;background: linear-gradient(135deg, #006e2e 0%,#00c42a 0%,#006e2e 50%,#00c42a 100%)",
    "action": "ssid?ssid=[[ssid]]&password=[[ssidPass]]"
   },
   {
-   "type": "hr"
+   "type": "hr",
+   "style": "border: 0; height: 1px; background-color: #335"
   },
   {
    "type": "h2",
-   "title": "Часовой пояс"
+   "title": "Часовой пояс",
+ "style": "font-size:25px"
   },
   {
    "type": "input",
    "title": "Часовой пояс",
    "name":"timeZone",
-   "style": "width:30%;display:inline",
+  "style": "width:30%;text-align:center;display:inline;border-radius:10px",
    "state": "{{timezone}}",
    "pattern": "[0-9-]{1,3}"
   },
@@ -86,46 +108,52 @@
    "module":"",
    "title": "Сохранить",
    "class": "btn btn-block btn-success",
-   "style": "width:70%;display:inline",
+  "style": "width:70%;display:inline;text-align:center;border-radius:10px;background: linear-gradient(135deg, #006e2e 0%,#00c42a 0%,#006e2e 50%,#00c42a 100%)",
    "action": "timeZone?timeZone=[[timeZone]]"
+  },
+{
+  "type": "hr",
+   "style": "border: 0; height: 1px; background-color:#335;width:50%"
   },
   {
    "type": "time",
    "name":"times1",
    "title": "На устройстве сейчас",
+   "style": "font-size:25px",
    "state":"{{time}}"
-  },
-  {
-   "type": "link",
-   "title": "Автоопределение зоны",
-   "action": "javascript:set_time_zone(this);",
-   "class": "btn btn-block btn-primary"
   },
   {
    "type": "link",
    "title": "Получить время из браузера",
    "action": "javascript:get_time_manual(this);",
-   "class": "btn btn-block btn-primary"
+   "class": "btn btn-block btn-primary",
+"style": "border:none;font-size:14px;width:100%;border-radius:10px;background: linear-gradient(135deg,  #d3958b 0%,#6d4aa5 50%,#bf6e4e 100%)"
   },
   {
-   "type": "hr"
+   "type": "hr",
+   "style": "border: 0; height: 1px; background-color: #335"
   },
   {
    "type": "h2",
-   "title": "Точка доступа"
+   "title": "Точка доступа",
+ "style": "font-size:25px"
+  },
+ {
+   "type": "h4",
+   "title": "Имя сети",
+   "style": "font-size:15px;float:left;text-align:center;width:50%;display:inline"
   },
   {
-   "type": "text",
-   "title": "После того как устройство подключается к роутеру, его Wi-Fi исчезнет.",
-   "class": "alert alert-warning",
-   "style": "width:45%;float:right;"
+   "type": "h4",
+   "title": "Пароль",
+   "style": "font-size:15px;float:right;text-align:center;width:50%;display:inline"
   },
-  {
+   {
    "type": "input",
    "title": "Имя WI-FI сети",
    "name": "ssidap",
    "state": "{{ssidAP}}",
-   "style": "width:50%;display:inline",
+   "style": "width:50%;text-align:center;display:inline;border-radius:10px",
    "pattern": ".{1,20}"
   },
   {
@@ -133,7 +161,7 @@
    "title": "Пароль",
    "name": "ssidApPass",
    "state": "{{passwordAP}}",
-   "style": "width:50%;display:inline",
+   "style": "width:50%;text-align:center;display:inline;border-radius:10px",
    "pattern": ".{8,20}"
   },
   {
@@ -141,66 +169,27 @@
    "title": "Сохранить",
    "action": "ssidap?ssidAP=[[ssidap]]&passwordAP=[[ssidApPass]]",
    "class": "btn btn-block btn-success",
-   "style": "width:50%;display:inline"
+  "style": "display:inline;text-align:center;border-radius:10px;background: linear-gradient(135deg, #006e2e 0%,#00c42a 0%,#006e2e 50%,#00c42a 100%)"
   },
   {
-   "type": "hr"
-  },
-  {
-   "type": "h2",
-   "title": "Настройки энергосбережения"
-  },
-{
-"type": "text",
-"title": "Внимание!!! После включения данного режима устройство переходит в режим низкого энергопотребления и выходит из него только после включения света. В данном режиме Web интерфейс будет недоступен!",
-"style": "display:block; font-size:16px",
-"class": "alert alert-warning"
-},
-{
-"type": "checkbox",
-"name":"lowpwr",
-"title": "Включить режим энергосбережения",
-"style": "display:block; font-size:20px",
-"state": "{{lowPWR}}"
-},
-{
-"type": "h4",
-"title": "Выбор режима энергосбережения:",
-"style": "display:block; font-size:16px"
-},
-{
-"type": "select",
-"state": "0",
-"title": {"0":"Modem Sleep","1":"Deep Sleep"},
-"style": "width:50%; height:50px; display:inline"
-},
-{
-"type": "text",
-"title": "<b>Modem Sleep</b> - отключается только WiFi<br><b>Deep Sleep</b> - полностью отключаются все функции. Пробуждение по таймеру",
-"style": "display:block; font-size:16px",
-"class": "alert alert-warning",
-   "style": "width:45%;float:right;"
-},
-{
-   "type": "button",
-   "module": "",
-   "title": "Сохранить",
-   "class": "btn btn-block btn-success",
-   "action": "lowpwr?onoff=[[lowpwr]]"
-  },
-  {
-  "type":"hr"
+   "type": "hr",
+   "style": "border: 0; height: 1px; background-color: #335"
   },
   {
    "type": "link",
    "title": "<i class=\"circle-img\"></i> Перезагрузить устройство",
    "action": "javascript:if(confirm(renameBlock(jsonResponse,'Перезагрузить?'))){send_request(this,'/restart?device=ok');}",
+"style": "border:none;width:100%;text-align:center;border-radius:8px;background: linear-gradient(135deg, #ffa69e 0%,#b20303 50%,#ffa69e 100%)",
    "class": "btn btn-block btn-danger"
   },
   {
    "type": "h2",
    "title": "Прошивка {{ver}}",
-   "style":"font-size:15px"
+ "style": "font-size:14px;border:none;text-align:center;border-radius:8px;background: linear-gradient(135deg, #606c88 0%,#1a3168 50%,#485166 100%)"
+},
+  {
+  "type": "hr",
+   "style": "border: 0; height: 5px; background-color: #335"
   }
  ]
 }

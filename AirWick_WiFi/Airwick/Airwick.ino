@@ -1,7 +1,7 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266SSDP.h>
-#include <FS.h>
+#include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <ESP8266HTTPUpdateServer.h>
 #include <PubSubClient.h>
@@ -13,7 +13,7 @@ ESP8266WebServer HTTP(80);
 // Для файловой системы
 File fsUploadFile;
 
-#define FLL_VERSION (" Ver.1.2")
+#define FLL_VERSION (" Ver.2.0")
 
 const int lightSensorPin = A0;  // Пин, к которому подключен датчик света
 const int motorPin = D1;        // Пин, к которому подключен мотор
@@ -33,11 +33,14 @@ int lightLevel;                        // Уровень освещения
 String configSetup = "{}";
 String configJson = "{}";
 String mqttconfigJson = "{}";
+String ipconfigJson = "{}";
 
-IPAddress staticIP(192, 168, 0, 105);      // Здесь указывается статический IP-адрес
-IPAddress gateway(192, 168, 0, 1);         // Здесь указывается IP-адрес шлюза
-IPAddress subnet(255, 255, 255, 0);        // Здесь указывается подсеть
-IPAddress dns(8, 8, 8, 8);                 // Здесь указывается IP-адрес DNS-сервера
+uint8_t use_static_ip = 0;
+IPAddress Static_IP;         // Статический IP
+IPAddress Gateway;//         // Шлюз
+IPAddress Subnet;            // маска подсети
+IPAddress DNS1;              // Серверы DNS. Можно также DNS1(1,1,1,1) или DNS1(8,8,4,4);
+IPAddress DNS2               // Резервный DNS
 
 String mqttServer = "";
 int mqttPort = 1883;
@@ -46,7 +49,6 @@ String mqttPassword = "";
 String topic = "motor";
 String clientID="ESP8266Client-";     // id клиента
 bool useMQTT=true;                    // Флаг использования mqtt 
-bool lowPower = false;                // Режим низкого энергопотребления
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -68,9 +70,9 @@ PubSubClient client(espClient);
     configSetup = readFile("config.json", 4096);
     jsonWrite(configJson, "SSDP", jsonRead(configSetup, "SSDP"));
     jsonWrite(configJson, "ver", FLL_VERSION);
+    init_ip();
     // Чтение порогового значения датчика света
     lightTreshold = jsonReadtoInt(configSetup, "light");
-    lowPower = jsonReadtoInt(configSetup, "lowPWR");
     if (lightTreshold==0) lightTreshold=500; 
     // Запускаем WIFI
     WIFIinit();
@@ -122,7 +124,7 @@ PubSubClient client(espClient);
       // Кнопка нажата, запустить мотор на 1 секунду
       Serial.println("Кнопка нажата");
       digitalWrite(motorPin, HIGH);
-      delay(300);
+      delay(50);
       digitalWrite(motorPin, LOW);
     }
 
@@ -146,7 +148,7 @@ PubSubClient client(espClient);
       }
       Serial.println("Распыление!");  //выводим в консоль, что мотор заработал
       digitalWrite(motorPin, HIGH);  // Запускаем мотор на 1 секунду
-      delay(300);
+      delay(50);
       digitalWrite(motorPin, LOW);  // Выключаем мотор
     }
     // Проверка подключения к MQTT-серверу
@@ -154,9 +156,4 @@ PubSubClient client(espClient);
       connectToMqtt();
     }
     client.loop();
-    //переходим в режим низкого энергопотребления
-    if (lowPower && lightLevel<lightTreshold && timerStartTime==0){
-      Serial.println("Идти спать!");
-      ESP.deepSleep(10e6);
-      }
   }

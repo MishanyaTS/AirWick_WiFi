@@ -3,6 +3,5 @@
 "mq_ip":"",
 "mq_port":"",
 "mq_ssid":"",
-"mq_pass":"",
-"mq_id":"motor"
+"mq_pass":""
 }

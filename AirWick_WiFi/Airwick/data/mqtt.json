@@ -1,13 +1,14 @@
 {
  "configs": [
   "/config.setup.json",
-  "/config.mqtt.json"
+  "/config_mqtt.json"
  ],
  "title": [
   {
    "type": "text",
    "class": "text-info",
-   "title": "<i class=\"settings-img\"></i> Настройка MQTT"
+   "style": "color:#16d3f2;text-shadow: #16d3f2 5px 0 50px",
+   "title": "<i class=\"mqtt-img\"></i> Настройка MQTT"
   }
  ],
 "class": "col-sm-offset-1 col-sm-10 col-md-offset-2 col-md-8 col-lg-offset-3 col-lg-6",
@@ -16,10 +17,11 @@
    "type": "h5",
    "title": "{{SSDP}}",
    "class": "alert-warning",
-   "style": "font-size:10px;width:100%"
+   "style": "font-size:10px;width:100%;text-align:center;border-radius:50px;padding:8px 10px 9px 10px;background-image: linear-gradient(to bottom right, blue, pink);box-shadow: 1px 1px 17px 5px blue"
   },
   {
-   "type": "hr"
+   "type": "hr",
+   "style": "border: 0; height: 1px; background-color: #335"
   },
   {
    "type": "checkbox",
@@ -30,86 +32,82 @@
    "state": "{{mq_on}}"
   },
   {
-   "type":"hr"
+   "type": "hr",
+   "style": "border: 0; height: 1px; background-color: #335"
   },
   {
    "type": "h4",
-   "title": "IP адрес MQTT брокера"
+   "title": "IP адрес MQTT брокера",
+   "style": "font-size:15px;float:left;text-align:center;width:50%;display:inline"
+  },
+  {
+   "type": "h4",
+   "title": "Порт",
+   "style": "font-size:15px;float:right;text-align:center;width:50%;display:inline"
   },
   {
    "type": "input",
    "title": "IP адрес MQTT брокера",
    "name": "mq_ip",
    "state": "{{mq_ip}}",
+   "style": "width:50%;text-align:center;display:inline;border-radius:8px",
    "pattern": "[0-9a-zA-Zа-яА-Я.\\_ ]{1,31}"
-  },
-  {
-   "type": "hr"
-  },
-  {
-   "type": "h4",
-   "title": "Порт MQTT брокера"
   },
   {
    "type": "input",
-   "title": "Порт MQTT брокера",
+   "title": "Порт",
    "name": "mq_port",
    "state": "{{mq_port}}",
+   "style": "width:50%;text-align:center;display:inline;border-radius:8px",
    "pattern": "[0-9a-zA-Zа-яА-Я.\\_ ]{1,31}"
-  }, 
-  {
-   "type": "hr"
-  }, 
+   }, 
    {
    "type": "h4",
-   "title": "Пользователь MQTT брокера"
+   "title": "Пользователь",
+   "style": "font-size:15px;float:left;text-align:center;width:50%;display:inline"
   },  
+  {
+   "type": "h4",
+   "title": "Пароль пользователя",
+   "style": "font-size:15px;float:right;text-align:center;width:50%;display:inline"
+  },
   {
    "type": "input",
    "title": "Пользователь MQTT брокера",
    "name": "mq_ssid",
    "state": "{{mq_ssid}}",
+   "style": "width:50%;text-align:center;display:inline;border-radius:8px",
    "pattern": "[0-9a-zA-Zа-яА-Я.\\_]{1,31}"
-  },
-  {
-   "type": "hr"
-  },
- {
-   "type": "h4",
-   "title": "Пароль пользователя MQTT брокера"
   },
   {
    "type": "password",
    "title": "Пароль пользователя MQTT брокера",
    "name": "mq_pass",
    "state": "{{mq_pass}}",
+   "style": "width:50%;text-align:center;display:inline;border-radius:8px",
    "pattern": "[0-9a-zA-Zа-яА-Я.\\_ ]{1,31}"
   },
-  {
-   "type": "hr"
-  },
-  {
-   "type": "h4",
-   "title": "id клиента MQTT брокера"
-  },
-  {
-   "type": "input",
-   "title": "id клиента MQTT брокера",
-   "name": "mq_id",
-   "state": "{{mq_id}}",
-   "pattern": "[0-9a-zA-Zа-яА-Я.\\_ ]{1,31}"
-  }, 
-  {
-   "type": "hr"
-  }, 
   {
    "type": "button",
    "title": "Сохранить",
    "class": "btn btn-block btn-success",
-   "action": "mqtt_save?mq_on=[[mq_on]]&mq_ip=[[mq_ip]]&mq_port=[[mq_port]]&mq_ssid=[[mq_ssid]]&mq_pass=[[mq_pass]]&mq_id=[[mq_id]]"
+ "style": "display:inline;text-align:center;border-radius:10px;background: linear-gradient(135deg, #006e2e 0%,#00c42a 0%,#006e2e 50%,#00c42a 100%)",
+   "action": "set_mqtt?&mq_on=[[mq_on]]&mq_ip=[[mq_ip]]&mq_port=[[mq_port]]&mq_ssid=[[mq_ssid]]&mq_pass=[[mq_pass]]"
   },
   {
-   "type": "hr"
+   "type": "hr",
+   "style": "border: 0; height: 1px; background-color: #335"
+  }, 
+{
+   "type": "link",
+   "title": "<i class=\"circle-img\"></i> Перезагрузить устройство",
+   "action": "javascript:if(confirm(renameBlock(jsonResponse,'Перезагрузить?'))){send_request(this,'/restart?device=ok');}",
+"style": "border:none;width:100%;text-align:center;border-radius:8px;background: linear-gradient(135deg, #ffa69e 0%,#b20303 50%,#ffa69e 100%)",
+   "class": "btn btn-block btn-danger"
+  },
+  {
+   "type": "hr",
+   "style": "border: 0; height: 5px; background-color: #335"
   }
  ]
 }

@@ -38,12 +38,12 @@
   {
    "type": "h4",
    "title": "IP адрес лампы",
-"style": "font-size:15px;float:left;text-align:center;width:50%;display:inline"
+   "style": "font-size:15px;float:left;text-align:center;width:50%;display:inline"
   },
-{
+  {
    "type": "h4",
    "title": "Шлюз",
-"style": "font-size:15px;float:right;text-align:center;width:50%;display:inline"
+   "style": "font-size:15px;float:right;text-align:center;width:50%;display:inline"
   },
   {
    "type": "input",
@@ -64,7 +64,7 @@
   {
    "type": "h4",
    "title": "Маска подсети",
-"style": "font-size:15px;float:left;text-align:center;width:50%;display:inline"
+   "style": "font-size:15px;float:left;text-align:center;width:50%;display:inline"
   },
   {
    "type": "h4",
@@ -91,17 +91,17 @@
    "type": "button",
    "title": "Сохранить",
    "class": "btn btn-block btn-success",
-"style": "display:inline;text-align:center;border-radius:10px;background: linear-gradient(135deg, #006e2e 0%,#00c42a 0%,#006e2e 50%,#00c42a 100%)",
+   "style": "display:inline;text-align:center;border-radius:10px;background: linear-gradient(135deg, #006e2e 0%,#00c42a 0%,#006e2e 50%,#00c42a 100%)",
    "action": "set_ip?ip_on=[[ip_on]]&ip1=[[ip]]&gateway=[[gateway]]&subnet=[[subnet]]&dns=[[dns]]"
   },
   {
    "type": "hr",
    "style": "border: 0; height: 1px; background-color: #335"
   },
-{
+  {
    "type": "link",
    "title": "<i class=\"circle-img\"></i> Перезагрузить устройство",
-   "action": "javascript:if(confirm(renameBlock(jsonResponse,'Перезагрузить?'))){send_request(this,'/restart?device=ok');}",
+   "action": "javascript:{if(confirm(renameBlock(jsonResponse,'Перезагрузить?'))){send_request(this,'/restart?device=ok'); setTimeout(function(){location.reload();}, 5000);}}",
    "style": "border:none;width:100%;text-align:center;border-radius:8px;background: linear-gradient(135deg, #ffa69e 0%,#b20303 50%,#ffa69e 100%)",
    "class": "btn btn-block btn-danger"
   },

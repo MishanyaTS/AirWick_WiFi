@@ -178,15 +178,15 @@
   {
    "type": "link",
    "title": "<i class=\"circle-img\"></i> Перезагрузить устройство",
-   "action": "javascript:if(confirm(renameBlock(jsonResponse,'Перезагрузить?'))){send_request(this,'/restart?device=ok');}",
-"style": "border:none;width:100%;text-align:center;border-radius:8px;background: linear-gradient(135deg, #ffa69e 0%,#b20303 50%,#ffa69e 100%)",
+   "action": "javascript:{if(confirm(renameBlock(jsonResponse,'Перезагрузить?'))){send_request(this,'/restart?device=ok'); setTimeout(function(){location.reload();}, 5000);}}",
+   "style": "border:none;width:100%;text-align:center;border-radius:8px;background: linear-gradient(135deg, #ffa69e 0%,#b20303 50%,#ffa69e 100%)",
    "class": "btn btn-block btn-danger"
   },
   {
    "type": "h2",
    "title": "Прошивка {{ver}}",
- "style": "font-size:14px;border:none;text-align:center;border-radius:8px;background: linear-gradient(135deg, #606c88 0%,#1a3168 50%,#485166 100%)"
-},
+  "style": "font-size:14px;border:none;text-align:center;border-radius:8px;background: linear-gradient(135deg, #606c88 0%,#1a3168 50%,#485166 100%)"
+  },
   {
   "type": "hr",
    "style": "border: 0; height: 5px; background-color: #335"

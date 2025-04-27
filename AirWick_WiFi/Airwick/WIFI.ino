@@ -26,8 +26,8 @@ void WIFIinit() {
   } else {
     if (use_static_ip) {
       // Конфигурация статического IP
-      if (IPAddress(Static_IP) && IPAddress(Gateway) && IPAddress(Subnet) && IPAddress(DNS1) && IPAddress(DNS2)) {
-        WiFi.config(Static_IP, Gateway, Subnet, DNS1, DNS2); 
+      if (IPAddress(Static_IP) && IPAddress(Gateway) && IPAddress(Subnet) && IPAddress(DNS1)) {
+        WiFi.config(Static_IP, Gateway, Subnet, DNS1); 
       } else {
         Serial.println("Ошибка: некорректные параметры статического IP.");
         return; // Не продолжаем, если параметры неверные

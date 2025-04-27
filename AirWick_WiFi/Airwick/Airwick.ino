@@ -40,7 +40,6 @@ IPAddress Static_IP;         // Статический IP
 IPAddress Gateway;//         // Шлюз
 IPAddress Subnet;            // маска подсети
 IPAddress DNS1;              // Серверы DNS. Можно также DNS1(1,1,1,1) или DNS1(8,8,4,4);
-IPAddress DNS2               // Резервный DNS
 
 String mqttServer = "";
 int mqttPort = 1883;

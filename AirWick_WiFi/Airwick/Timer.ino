@@ -1,80 +1,129 @@
+const uint8_t PRETIMER_MIN_MINUTES = 1;
+const uint8_t PRETIMER_MAX_MINUTES = 10;
+const uint8_t INTERVAL_MIN_MINUTES = 1;
+const uint8_t INTERVAL_MAX_MINUTES = 60;
+
+int clampMinutes(int value, int minimumValue, int maximumValue) {
+  if (value < minimumValue) return minimumValue;
+  if (value > maximumValue) return maximumValue;
+  return value;
+}
+
+bool parseTimerMinutes(const String& value, int minimumValue,
+                       int maximumValue, int& minutes) {
+  if (!value.length()) return false;
+  for (size_t i = 0; i < value.length(); i++) {
+    if (!isDigit(value[i])) return false;
+  }
+  minutes = value.toInt();
+  return minutes >= minimumValue && minutes <= maximumValue;
+}
+
+void sendTimerValidationError() {
+  HTTP.send(400, "application/json",
+            "{\"ok\":false,\"error\":\"timer value is out of range\"}");
+}
+
+void setPreTimerMinutes(int minutes, bool persist) {
+  minutes = clampMinutes(minutes, PRETIMER_MIN_MINUTES, PRETIMER_MAX_MINUTES);
+  preTimer = (uint32_t)minutes * 60000UL;
+  jsonWrite(configSetup, "preTimer", minutes);
+  if (persist) saveConfig();
+}
+
+void setSprayIntervalMinutes(int minutes, bool persist) {
+  minutes = clampMinutes(minutes, INTERVAL_MIN_MINUTES, INTERVAL_MAX_MINUTES);
+  timerDuration = (uint32_t)minutes * 60000UL;
+  jsonWrite(configSetup, "Interval", minutes);
+  if (persist) saveConfig();
+}
+
 void Timer_init() {
-  HTTP.on("/setPreTimers", handle_Pretimers);   // Установка значений предварительного таймера
-  HTTP.on("/setpretimer", handle_pretimer);     // Установка значений предварительного таймера  
-  HTTP.on("/preTimerm", handle_preTimerm);      // Обработчик для уменьшения предтаймера
-  HTTP.on("/preTimerp", handle_preTimerp);      // Обработчик для увеличения предтаймера 
-   
-  HTTP.on("/setTimers", handle_timers);         // Установка значений таймера срабатывания      
-  HTTP.on("/setmaintimer", handle_maintimer);   // Установка значений таймера срабатывания
-  HTTP.on("/Timerm", handle_Timerm);            // Обработчик для уменьшения таймера
-  HTTP.on("/Timerp", handle_Timerp);            // Обработчик для увеличения таймера
+  int configuredPreTimer = jsonReadtoInt(configSetup, "preTimer");
+  int configuredInterval = jsonReadtoInt(configSetup, "Interval");
+  int validPreTimer =
+      configuredPreTimer >= PRETIMER_MIN_MINUTES &&
+      configuredPreTimer <= PRETIMER_MAX_MINUTES ? configuredPreTimer : 1;
+  int validInterval =
+      configuredInterval >= INTERVAL_MIN_MINUTES &&
+      configuredInterval <= INTERVAL_MAX_MINUTES ? configuredInterval : 2;
+  bool changed = validPreTimer != configuredPreTimer || validInterval != configuredInterval;
 
+  setPreTimerMinutes(validPreTimer, false);
+  setSprayIntervalMinutes(validInterval, false);
+  if (changed) saveConfig();
+
+  HTTP.on("/setPreTimers", handle_Pretimers);
+  HTTP.on("/setpretimer", handle_pretimer);     // Совместимость со старой страницей.
+  HTTP.on("/preTimerm", handle_preTimerm);
+  HTTP.on("/preTimerp", handle_preTimerp);
+
+  HTTP.on("/setTimers", handle_timers);
+  HTTP.on("/setmaintimer", handle_maintimer);   // Совместимость со старой страницей.
+  HTTP.on("/Timerm", handle_Timerm);
+  HTTP.on("/Timerp", handle_Timerp);
 }
 
-// Установка значений предварительного таймера
 void handle_Pretimers() {
-  int temppre = HTTP.arg("pretimer").toInt();
-  savePreTimers(temppre);
-  preTimer = temppre * 60000;
-  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
-}
-// Функция для сохранения таймеров в JSON
-void savePreTimers(int preTimerValue) {
-  jsonWrite(configSetup, "preTimer", preTimerValue);
-  saveConfig();
-}
-// Установка значений предварительного таймера
-void handle_pretimer() {
-  preTimer = HTTP.arg("val").toInt() * 60000;
-  jsonWrite(configSetup, "preTimer", preTimer / 60000); // сохраняя в минутах
-  saveConfig();
-  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
-}
-// Обработчик уменьшения предтаймера
-void handle_preTimerm() {
-  preTimer = constrain(preTimer - 1 * 60000, 1 * 60000, 10 * 60000);
-  jsonWrite(configSetup, "preTimer", preTimer / 60000); // Сохраняем в минутах
-  saveConfig();
-  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
-}
-// Обработчик увеличения предтаймера
-void handle_preTimerp() {
-  preTimer = constrain(preTimer + 1 * 60000, 1 * 60000, 10 * 60000);
-  jsonWrite(configSetup, "preTimer", preTimer / 60000); // Сохраняем в минутах
-  saveConfig();
-  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
+  int minutes;
+  if (!parseTimerMinutes(HTTP.arg("pretimer"), PRETIMER_MIN_MINUTES,
+                         PRETIMER_MAX_MINUTES, minutes)) {
+    sendTimerValidationError();
+    return;
+  }
+  setPreTimerMinutes(minutes, true);
+  HTTP.send(200, "application/json", "{\"should_refresh\":true}");
 }
 
-// Установка значений таймера срабатывания
+void handle_pretimer() {
+  int minutes;
+  if (!parseTimerMinutes(HTTP.arg("val"), PRETIMER_MIN_MINUTES,
+                         PRETIMER_MAX_MINUTES, minutes)) {
+    sendTimerValidationError();
+    return;
+  }
+  setPreTimerMinutes(minutes, true);
+  HTTP.send(200, "application/json", "{\"should_refresh\":true}");
+}
+
+void handle_preTimerm() {
+  setPreTimerMinutes((int)(preTimer / 60000UL) - 1, true);
+  HTTP.send(200, "application/json", "{\"should_refresh\":true}");
+}
+
+void handle_preTimerp() {
+  setPreTimerMinutes((int)(preTimer / 60000UL) + 1, true);
+  HTTP.send(200, "application/json", "{\"should_refresh\":true}");
+}
+
 void handle_timers() {
-  int tempint = HTTP.arg("interval").toInt();
-  saveTimers(tempint);
-  timerDuration = tempint * 60000;
-  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
+  int minutes;
+  if (!parseTimerMinutes(HTTP.arg("interval"), INTERVAL_MIN_MINUTES,
+                         INTERVAL_MAX_MINUTES, minutes)) {
+    sendTimerValidationError();
+    return;
+  }
+  setSprayIntervalMinutes(minutes, true);
+  HTTP.send(200, "application/json", "{\"should_refresh\":true}");
 }
-// Функция для сохранения таймеров в JSON
-void saveTimers(int timerDurationValue) {
-  jsonWrite(configSetup, "Interval", timerDurationValue);
-  saveConfig();
-}
-// Установка значений таймера срабатывания
+
 void handle_maintimer() {
-  timerDuration = HTTP.arg("val").toInt() * 60000;
-  jsonWrite(configSetup, "Interval", timerDuration / 60000); // сохраняя в минутах
-  saveConfig();
-  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
+  int minutes;
+  if (!parseTimerMinutes(HTTP.arg("val"), INTERVAL_MIN_MINUTES,
+                         INTERVAL_MAX_MINUTES, minutes)) {
+    sendTimerValidationError();
+    return;
+  }
+  setSprayIntervalMinutes(minutes, true);
+  HTTP.send(200, "application/json", "{\"should_refresh\":true}");
 }
-// Обработчик уменьшения предтаймера
+
 void handle_Timerm() {
-  timerDuration = constrain(timerDuration - 1 * 60000, 1 * 60000, 60 * 60000);
-  jsonWrite(configSetup, "Interval", timerDuration / 60000); // Сохраняем в минутах
-  saveConfig();
-  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
+  setSprayIntervalMinutes((int)(timerDuration / 60000UL) - 1, true);
+  HTTP.send(200, "application/json", "{\"should_refresh\":true}");
 }
-// Обработчик увеличения предтаймера
+
 void handle_Timerp() {
-  timerDuration = constrain(timerDuration + 1 * 60000, 1 * 60000, 60 * 60000);
-  jsonWrite(configSetup, "Interval", timerDuration / 60000); // Сохраняем в минутах
-  saveConfig();
-  HTTP.send(200, "application/json", "{\"should_refresh\": \"true\"}");
+  setSprayIntervalMinutes((int)(timerDuration / 60000UL) + 1, true);
+  HTTP.send(200, "application/json", "{\"should_refresh\":true}");
 }

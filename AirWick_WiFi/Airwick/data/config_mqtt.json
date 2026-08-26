@@ -1,7 +1,11 @@
 {
 "mq_on":"0",
 "mq_ip":"",
-"mq_port":"",
-"mq_ssid":"",
-"mq_pass":""
+"mq_port":"1883",
+"mq_user":"",
+"mq_pass":"",
+"topic":"AirWick",
+"mq_prd":"0",
+"TopicS":"AirWick_000000/cmnd",
+"TopicP":"AirWick_000000/snd"
 }

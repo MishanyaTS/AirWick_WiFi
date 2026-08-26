@@ -1,5 +1,5 @@
 // Инициализация FFS
-void FS_init(void) {  
+void FS_init(void) {
   LittleFS.begin();
   {
     Dir dir = LittleFS.openDir("/");
@@ -8,30 +8,22 @@ void FS_init(void) {
       size_t fileSize = dir.fileSize();
     }
   }
-  //HTTP страницы для работы с FFS
-  //list directory
+  // HTTP страницы для работы с FFS
   HTTP.on("/list", HTTP_GET, handleFileList);
-  //загрузка редактора editor
   HTTP.on("/edit", HTTP_GET, []() {
     if (!handleFileRead("/edit.htm")) HTTP.send(404, "text/plain", "FileNotFound");
   });
-  //Создание файла
   HTTP.on("/edit", HTTP_PUT, handleFileCreate);
-  //Удаление файла
   HTTP.on("/edit", HTTP_DELETE, handleFileDelete);
-  //first callback is called after the request has ended with all parsed arguments
-  //second callback handles file uploads at that location
   HTTP.on("/edit", HTTP_POST, []() {
     HTTP.send(200, "text/plain", "");
   }, handleFileUpload);
-  //called when the url is not defined here
-  //use it to load content from LittleFS
   HTTP.onNotFound([]() {
     if (!handleFileRead(HTTP.uri()))
       HTTP.send(404, "text/plain", "FileNotFound");
   });
 }
-// Здесь функции для работы с файловой системой
+
 String getContentType(String filename) {
   if (HTTP.hasArg("download")) return "application/octet-stream";
   else if (filename.endsWith(".htm")) return "text/html";
@@ -74,7 +66,6 @@ void handleFileUpload() {
     fsUploadFile = LittleFS.open(filename, "w");
     filename = String();
   } else if (upload.status == UPLOAD_FILE_WRITE) {
-    //DBG_OUTPUT_PORT.print("handleFileUpload Data: "); DBG_OUTPUT_PORT.println(upload.currentSize);
     if (fsUploadFile)
       fsUploadFile.write(upload.buf, upload.currentSize);
   } else if (upload.status == UPLOAD_FILE_END) {
@@ -110,7 +101,6 @@ void handleFileCreate() {
     return HTTP.send(500, "text/plain", "CREATE FAILED");
   HTTP.send(200, "text/plain", "");
   path = String();
-
 }
 
 void handleFileList() {
@@ -129,7 +119,9 @@ void handleFileList() {
     output += "{\"type\":\"";
     output += (isDir) ? "dir" : "file";
     output += "\",\"name\":\"";
-    output += String(entry.name()).substring(1);
+    String entryName = String(entry.name());
+    if (entryName.startsWith("/")) entryName.remove(0, 1);
+    output += entryName;
     output += "\"}";
     entry.close();
   }

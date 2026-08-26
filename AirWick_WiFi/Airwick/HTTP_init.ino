@@ -28,16 +28,17 @@ void HTTP_init(void) {
 
   // Добавляем функцию Update для перезаписи прошивки по WiFi при 1М(256K LittleFS) и выше
   httpUpdater.setup(&HTTP);
-  // Запускаем HTTP сервер
-  HTTP.begin();
   // Добавляем обработчик для кнопки
   HTTP.on("/motor", []() {
-    // Включаем мотор на 1 секунду
-    Serial.println("Кнопка нажата в веб интерфейсе");
-    digitalWrite(motorPin, HIGH);
-    delay(50);
-    digitalWrite(motorPin, LOW);
-    // Возвращаем ответ на страницу
-    HTTP.send(200, "text/plain", "Motor started for 1 second");
+    bool sprayed = activateSprayer(F("Команда из веб-интерфейса"), "web");
+    if (sprayed) {
+      HTTP.send(200, "application/json", "{\"ok\":true,\"sprayed\":true}");
+    } else {
+      String response = String("{\"ok\":false,\"sprayed\":false,\"reason\":\"cooldown\",\"cooldown_ms\":") +
+                        sprayCooldownRemainingMs() + "}";
+      HTTP.send(200, "application/json", response);
+    }
   });
+  // Запускаем HTTP сервер после регистрации всех обработчиков.
+  HTTP.begin();
 }

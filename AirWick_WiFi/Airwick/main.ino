@@ -18,6 +18,14 @@ int jsonReadtoInt(String &json, String name) {
   return jsonDoc[name].as<int>();
 }
 
+// ------------- Проверка наличия ключа json (в том числе с пустым значением)
+bool jsonHasKey(String &json, const char* name) {
+  DynamicJsonDocument jsonDoc(1024);
+  DeserializationError error = deserializeJson(jsonDoc, json);
+  if (error) return false;
+  return jsonDoc.containsKey(name);
+}
+
 // ------------- Запись значения json String
 String jsonWrite(String &json, String name, String volume) {
   DynamicJsonDocument jsonDoc(1024); // Увеличьте размер, если требуется

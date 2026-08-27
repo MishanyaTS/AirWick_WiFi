@@ -3,9 +3,11 @@ const uint16_t DISCOVERY_HTTP_PORT = 80;
 const size_t DISCOVERY_PACKET_SIZE = 96;
 
 WiFiUDP discoveryUdp;
+bool discoveryUdpStarted = false;
+uint32_t lastDiscoveryStartAttemptMs = 0;
 
 IPAddress getActiveAirWickIP() {
-  if (WiFi.status() == WL_CONNECTED) {
+  if (stationHasValidConnection()) {
     IPAddress stationIp = WiFi.localIP();
     if (stationIp.toString() != "0.0.0.0") return stationIp;
   }
@@ -43,7 +45,7 @@ void sendDiscoveryInfo() {
   doc["ip"] = getActiveAirWickIP().toString();
   doc["http_port"] = DISCOVERY_HTTP_PORT;
   doc["udp_port"] = DISCOVERY_UDP_PORT;
-  doc["sta_connected"] = WiFi.status() == WL_CONNECTED;
+  doc["sta_connected"] = stationHasValidConnection();
   doc["ap_active"] = mode == WIFI_AP || mode == WIFI_AP_STA;
   doc["wifi_mode"] = mode == WIFI_AP ? "AP" :
                      mode == WIFI_STA ? "Station" : "AP+Station";
@@ -68,19 +70,44 @@ void sendDiscoveryVersion() {
   HTTP.send(200, "application/json; charset=utf-8", response);
 }
 
-void initDiscovery() {
-  HTTP.on("/api/v1/info", HTTP_GET, sendDiscoveryInfo);
-  HTTP.on("/version", HTTP_GET, sendDiscoveryVersion);
-
+bool startDiscoveryUdp(bool restarted) {
+  lastDiscoveryStartAttemptMs = millis();
+  discoveryUdp.stop();
   if (discoveryUdp.begin(DISCOVERY_UDP_PORT)) {
-    Serial.print("UDP поиск запущен, порт: ");
-    Serial.println(DISCOVERY_UDP_PORT);
+    discoveryUdpStarted = true;
+    LOG.print(restarted ? F("UDP поиск AirWick перезапущен, порт: ")
+                        : F("UDP поиск AirWick запущен, порт: "));
+    LOG.println(DISCOVERY_UDP_PORT);
+    return true;
   } else {
-    Serial.println("Не удалось запустить UDP поиск.");
+    discoveryUdpStarted = false;
+    LOG.println(F("Не удалось запустить UDP поиск AirWick"));
+    return false;
   }
 }
 
+void restartDiscoveryUdp() {
+  startDiscoveryUdp(true);
+}
+
+void initDiscovery() {
+  HTTP.on("/api/v1/info", HTTP_GET, sendDiscoveryInfo);
+  HTTP.on("/version", HTTP_GET, sendDiscoveryVersion);
+  startDiscoveryUdp(false);
+}
+
 void discoveryLoop() {
+  if (!discoveryUdpStarted) {
+    WiFiMode_t mode = WiFi.getMode();
+    bool networkInterfaceActive = stationHasValidConnection() ||
+                                  mode == WIFI_AP || mode == WIFI_AP_STA;
+    if (networkInterfaceActive &&
+        millis() - lastDiscoveryStartAttemptMs >= WIFI_ROUTER_RETRY_INTERVAL) {
+      startDiscoveryUdp(true);
+    }
+    return;
+  }
+
   // За один цикл обрабатываем несколько пакетов: приложение посылает запрос
   // повторно и может искать сразу несколько устройств.
   for (uint8_t processed = 0; processed < 3; processed++) {

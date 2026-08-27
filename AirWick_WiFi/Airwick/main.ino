@@ -53,18 +53,24 @@ String jsonWrite(String &json, String name, int volume) {
 }
 
 void saveConfig (){
-  writeFile("config.json", configSetup );
+  if (writeFile("config.json", configSetup) != "Write sucsses") {
+    LOG.println(F("Ошибка сохранения config.json"));
+  }
 }
 
 // ------------- Чтение файла в строку
 String readFile(String fileName, size_t len ) {
   File configFile = LittleFS.open("/" + fileName, "r");
   if (!configFile) {
+    LOG.print(F("Не удалось открыть файл: /"));
+    LOG.println(fileName);
     return "Failed";
   }
   size_t size = configFile.size();
   if (size > len) {
     configFile.close();
+    LOG.print(F("Файл превышает допустимый размер: /"));
+    LOG.println(fileName);
     return "Large";
   }
   String temp = configFile.readString();
@@ -76,6 +82,8 @@ String readFile(String fileName, size_t len ) {
 String writeFile(String fileName, String strings ) {
   File configFile = LittleFS.open("/" + fileName, "w");
   if (!configFile) {
+    LOG.print(F("Не удалось открыть файл для записи: /"));
+    LOG.println(fileName);
     return "Failed to open config file";
   }
   configFile.print(strings);

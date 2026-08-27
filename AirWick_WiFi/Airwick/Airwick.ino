@@ -7,6 +7,9 @@
 #include <ArduinoJson.h>
 #include <ESP8266HTTPUpdateServer.h>
 #include <PubSubClient.h>
+#include "SystemLog.h"
+
+#define LOG SystemLog::instance()
 
 // Объект для обнавления с web страницы
 ESP8266HTTPUpdateServer httpUpdater;
@@ -15,15 +18,14 @@ ESP8266WebServer HTTP(80);
 // Для файловой системы и встроенного редактора
 File fsUploadFile;
 
-#define AIRWICK_VERSION ("3.0")
+#define AIRWICK_VERSION ("3.1")
 
 ESP8266WiFiMulti wifiMulti;
 
 const uint8_t AP_STATIC_IP[] = {192, 168, 4, 1};
 const uint32_t WIFI_FALLBACK_DELAY = 20000UL;
-const uint32_t WIFI_ROUTER_RETRY_INTERVAL = 300000UL;
-const uint32_t WIFI_ROUTER_RETRY_WINDOW = 20000UL;
-const uint32_t WIFI_ROUTER_RETRY_STEP = 500UL;
+const uint32_t WIFI_ROUTER_RETRY_INTERVAL = 15000UL;
+const uint32_t WIFI_DIAGNOSTIC_INTERVAL = 300000UL;
 const uint32_t MQTT_RECONNECT_INTERVAL = 10000UL;
 const uint32_t SPRAY_LOCKOUT_MS = 3000UL;
 const uint32_t BUTTON_DEBOUNCE_MS = 60UL;
@@ -69,9 +71,14 @@ bool ssdpInitialized = false;
 uint32_t apFallbackStartMs = 0;
 uint32_t lastRouterRetryMs = 0;
 uint8_t configuredWiFiNetworks = 0;
-bool routerRetryActive = false;
-uint32_t routerRetryStartMs = 0;
-uint32_t lastRouterRetryStepMs = 0;
+uint8_t nextWiFiNetworkIndex = 0;
+uint32_t lastWiFiDiagnosticMs = 0;
+IPAddress lastStationIP;
+WiFiEventHandler wifiGotIpEventHandler;
+WiFiEventHandler wifiDisconnectedEventHandler;
+volatile bool wifiGotIpEventPending = false;
+volatile bool wifiDisconnectEventPending = false;
+volatile uint8_t lastWiFiDisconnectReason = 0;
 
 String mqttServer = "";
 uint16_t mqttPort = 1883;
@@ -104,12 +111,12 @@ uint32_t sprayCooldownRemainingMs() {
 bool activateSprayer(const __FlashStringHelper* message, const char* source) {
   uint32_t cooldown = sprayCooldownRemainingMs();
   if (cooldown) {
-    Serial.print(F("Распыление заблокировано, осталось мс: "));
-    Serial.println(cooldown);
+    LOG.print(F("Распыление заблокировано, осталось мс: "));
+    LOG.println(cooldown);
     return false;
   }
   if (message != nullptr) {
-    Serial.println(message);
+    LOG.println(message);
   }
   lastSprayMs = millis();
   sprayHasRun = true;
@@ -126,7 +133,16 @@ bool activateSprayer(const __FlashStringHelper* message, const char* source) {
   void setup() {
     Serial.begin(115200);
     delay(5);
-    Serial.println("");
+    LOG.println();
+    LOG.println(F("========================================"));
+    LOG.println(F("SYSTEM START AIRWICK ESP8266"));
+    LOG.print(F("Версия прошивки: "));
+    LOG.println(AIRWICK_VERSION);
+    LOG.print(F("Причина перезапуска: "));
+    LOG.println(ESP.getResetReason());
+    LOG.print(F("Свободная память: "));
+    LOG.print(ESP.getFreeHeap());
+    LOG.println(F(" байт"));
 
     pinMode(lightSensorPin, INPUT);
     pinMode(motorPin, OUTPUT);
@@ -139,6 +155,7 @@ bool activateSprayer(const __FlashStringHelper* message, const char* source) {
     FS_init();
     configSetup = readFile("config.json", 4096);
     if (configSetup == "Failed" || configSetup == "Large") {
+      LOG.println(F("config.json не прочитан, используются безопасные значения"));
       configSetup = "{}";
     }
     migrateNetworkConfig();
@@ -172,9 +189,11 @@ bool activateSprayer(const __FlashStringHelper* message, const char* source) {
     User_setings();
     init_mqtt();
     GRAF_init();
+    initSystemLogRoutes();
     // Настраиваем и запускаем HTTP интерфейс
     HTTP_init();
     lightLevel = analogRead(lightSensorPin);
+    LOG.println(F("Инициализация AirWick завершена"));
   }
    
   void loop() {
@@ -189,19 +208,20 @@ bool activateSprayer(const __FlashStringHelper* message, const char* source) {
     if (currentTime - previousTime >= interval) {
       previousTime = currentTime;
       lightLevel = analogRead(lightSensorPin);
-     Serial.println(lightLevel);
+     LOG.print(F("Датчик освещения: "));
+     LOG.println(lightLevel);
    
     
      if (lightLevel > lightTreshold) {
         // Если свет горит, запускаем предварительный таймер
         if (pretimerStartTime == 0 && workmode == false) {
-          Serial.println("Предтаймер запущен!");
+          LOG.println(F("Предтаймер запущен"));
           pretimerStartTime = currentTime;
         }
       } else {
         // Если свет выключен, останавливаем предварительныйтаймер
         pretimerStartTime = 0;
-        Serial.println("Предтаймер остановлен");
+        LOG.println(F("Предтаймер остановлен"));
         workmode = false;  //отключаем режим распыления
       }
     }
@@ -221,7 +241,7 @@ bool activateSprayer(const __FlashStringHelper* message, const char* source) {
     // Проверяем состояние предварительного таймера
     if (pretimerStartTime > 0 && currentTime - pretimerStartTime >= preTimer) {
       pretimerStartTime = 0;  // Таймер истек, сбрасываем его состояние
-      Serial.println("Переключиться в рабочий режим");
+      LOG.println(F("Включён рабочий режим распыления"));
       workmode = true;               //переходим в режим распыления
       timerStartTime = currentTime;  //запускаем таймер распыления
     }
@@ -231,10 +251,10 @@ bool activateSprayer(const __FlashStringHelper* message, const char* source) {
       //если свет все еще горит перезапускаем таймер, если нет - останавливаем
       if (workmode) {
         timerStartTime = currentTime;
-        Serial.println("Перезапуск таймера");
+        LOG.println(F("Таймер распыления перезапущен"));
       } else {
         timerStartTime = 0;
-        Serial.println("Таймер остановлен");
+        LOG.println(F("Таймер распыления остановлен"));
       }
       activateSprayer(F("Распыление!"), "auto");
     }

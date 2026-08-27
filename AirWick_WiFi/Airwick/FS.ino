@@ -1,6 +1,10 @@
 // Инициализация FFS
 void FS_init(void) {
-  LittleFS.begin();
+  if (!LittleFS.begin()) {
+    LOG.println(F("Ошибка монтирования LittleFS"));
+    return;
+  }
+  LOG.println(F("LittleFS успешно подключена"));
   {
     Dir dir = LittleFS.openDir("/");
     while (dir.next()) {

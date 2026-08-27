@@ -20,6 +20,7 @@ bool parseTimerMinutes(const String& value, int minimumValue,
 }
 
 void sendTimerValidationError() {
+  LOG.println(F("Отклонено неверное значение таймера"));
   HTTP.send(400, "application/json",
             "{\"ok\":false,\"error\":\"timer value is out of range\"}");
 }
@@ -28,14 +29,24 @@ void setPreTimerMinutes(int minutes, bool persist) {
   minutes = clampMinutes(minutes, PRETIMER_MIN_MINUTES, PRETIMER_MAX_MINUTES);
   preTimer = (uint32_t)minutes * 60000UL;
   jsonWrite(configSetup, "preTimer", minutes);
-  if (persist) saveConfig();
+  if (persist) {
+    saveConfig();
+    LOG.print(F("Предтаймер сохранён: "));
+    LOG.print(minutes);
+    LOG.println(F(" мин"));
+  }
 }
 
 void setSprayIntervalMinutes(int minutes, bool persist) {
   minutes = clampMinutes(minutes, INTERVAL_MIN_MINUTES, INTERVAL_MAX_MINUTES);
   timerDuration = (uint32_t)minutes * 60000UL;
   jsonWrite(configSetup, "Interval", minutes);
-  if (persist) saveConfig();
+  if (persist) {
+    saveConfig();
+    LOG.print(F("Интервал распыления сохранён: "));
+    LOG.print(minutes);
+    LOG.println(F(" мин"));
+  }
 }
 
 void Timer_init() {
@@ -52,6 +63,12 @@ void Timer_init() {
   setPreTimerMinutes(validPreTimer, false);
   setSprayIntervalMinutes(validInterval, false);
   if (changed) saveConfig();
+
+  LOG.print(F("Таймеры: предтаймер="));
+  LOG.print(validPreTimer);
+  LOG.print(F(" мин, интервал распыления="));
+  LOG.print(validInterval);
+  LOG.println(F(" мин"));
 
   HTTP.on("/setPreTimers", handle_Pretimers);
   HTTP.on("/setpretimer", handle_pretimer);     // Совместимость со старой страницей.

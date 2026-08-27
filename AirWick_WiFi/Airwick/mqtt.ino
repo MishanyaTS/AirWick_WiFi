@@ -143,6 +143,7 @@ void resetMqttConnection() {
   if (client.connected()) {
     client.publish(mqttAvailabilityTopic.c_str(), "offline", true);
     client.disconnect();
+    LOG.println(F("MQTT отключён"));
   }
   mqttLastConnectingAttempt = 0;
   mqttNeedToPublish = true;
@@ -156,6 +157,19 @@ void init_mqtt() {
   HTTP.on("/set_mqtt", handle_set_mqtt); // Совместимость со старой страницей.
   loadMqttConfig();
   resetMqttConnection();
+  LOG.print(F("MQTT: "));
+  if (!useMQTT) {
+    LOG.println(F("выключен"));
+  } else if (!mqttConfigValid) {
+    LOG.println(F("включён, но настройки неверны"));
+  } else {
+    LOG.print(F("включён, брокер "));
+    LOG.print(mqttServer);
+    LOG.print(':');
+    LOG.print(mqttPort);
+    LOG.print(F(", топик команд "));
+    LOG.println(mqttCommandTopic);
+  }
 }
 
 bool saveMqttConnectionSettings(String& errorMessage) {
@@ -200,15 +214,24 @@ bool saveMqttConnectionSettings(String& errorMessage) {
   resetMqttConnection();
   if (writeFile("config_mqtt.json", config) != "Write sucsses") {
     errorMessage = "cannot save MQTT settings";
+    LOG.println(F("Не удалось сохранить настройки MQTT"));
     return false;
   }
   loadMqttConfig();
   mqttNeedToPublish = true;
+  LOG.print(F("Настройки MQTT сохранены: брокер "));
+  LOG.print(mqttServer);
+  LOG.print(':');
+  LOG.print(mqttPort);
+  LOG.print(F(", базовый топик "));
+  LOG.println(mqttTopicBase);
   return true;
 }
 
 void sendMqttSettingsResult(bool saved, const String& errorMessage) {
   if (!saved) {
+    LOG.print(F("Настройки MQTT отклонены: "));
+    LOG.println(errorMessage);
     String response = String("{\"ok\":false,\"error\":\"") + errorMessage + "\"}";
     HTTP.send(400, "application/json", response);
     return;
@@ -229,6 +252,7 @@ void handle_set_mqtt() {
 void handle_mqtt_on() {
   uint8_t requestedMode = HTTP.arg("mq_on").toInt() ? 1 : 0;
   if (requestedMode && !mqttConfigValid) {
+    LOG.println(F("MQTT не включён: сначала настройте брокер"));
     HTTP.send(400, "application/json",
               "{\"ok\":false,\"error\":\"configure MQTT broker first\"}");
     return;
@@ -240,6 +264,8 @@ void handle_mqtt_on() {
   resetMqttConnection();
   writeFile("config_mqtt.json", config);
   loadMqttConfig();
+  LOG.print(F("MQTT: "));
+  LOG.println(requestedMode ? F("включён") : F("выключен"));
   HTTP.send(200, "application/json", "{\"ok\":true,\"should_refresh\":true}");
 }
 
@@ -262,6 +288,9 @@ void handle_mqtt_period() {
   jsonWrite(config, "mq_prd", period);
   writeFile("config_mqtt.json", config);
   mqttPeriod = (uint8_t)period;
+  LOG.print(F("Период публикации MQTT сохранён: "));
+  LOG.print(mqttPeriod);
+  LOG.println(F(" с"));
   HTTP.send(200, "application/json", "{\"ok\":true,\"should_refresh\":true}");
 }
 
@@ -301,11 +330,11 @@ void connectToMqtt() {
       millis() - mqttLastConnectingAttempt < MQTT_RECONNECT_INTERVAL) return;
 
   mqttLastConnectingAttempt = millis();
-  Serial.print("Подключение к MQTT брокеру ");
-  Serial.print(mqttServer);
-  Serial.print(':');
-  Serial.print(mqttPort);
-  Serial.print("...");
+  LOG.print(F("Подключение к MQTT брокеру "));
+  LOG.print(mqttServer);
+  LOG.print(':');
+  LOG.print(mqttPort);
+  LOG.print(F("..."));
 
   bool connected;
   if (mqttUser.length()) {
@@ -318,15 +347,18 @@ void connectToMqtt() {
   }
 
   if (connected) {
-    Serial.println(" подключено");
+    LOG.println(F(" подключено"));
     client.publish(mqttAvailabilityTopic.c_str(), "online", true);
     client.subscribe(mqttCommandTopic.c_str(), 1);
     client.subscribe("motor", 1); // Совместимость со старыми настройками.
     mqttLastConnectingAttempt = 0;
     mqttNeedToPublish = true;
   } else {
-    Serial.print(" ошибка, код ");
-    Serial.println(client.state());
+    LOG.print(F(" ошибка, код "));
+    LOG.print(client.state());
+    LOG.print(F(" ("));
+    LOG.print(mqttStateLabel(client.state()));
+    LOG.println(')');
   }
 }
 
@@ -341,6 +373,7 @@ bool publishMqttSprayEvent() {
   serializeJson(event, payload);
   bool published = client.publish(mqttEventTopic.c_str(), payload.c_str(), false);
   mqttSprayEventPending = false;
+  if (!published) LOG.println(F("Ошибка публикации события распыления MQTT"));
   return published;
 }
 
@@ -356,7 +389,10 @@ bool publishMqttState() {
   state["ip"] = WiFi.localIP().toString();
   String payload;
   serializeJson(state, payload);
-  if (!client.publish(mqttStateTopic.c_str(), payload.c_str(), true)) return false;
+  if (!client.publish(mqttStateTopic.c_str(), payload.c_str(), true)) {
+    LOG.println(F("Ошибка публикации состояния MQTT"));
+    return false;
+  }
   mqttNeedToPublish = false;
   mqttPublishTimer = millis();
   return true;
@@ -386,7 +422,10 @@ void mqttLoop() {
 }
 
 void mqttCallback(char* receivedTopic, byte* payload, unsigned int length) {
-  if (payload == nullptr || length == 0 || length > 64) return;
+  if (payload == nullptr || length == 0 || length > 64) {
+    LOG.println(F("Получена пустая или слишком длинная команда MQTT"));
+    return;
+  }
   char commandBuffer[65];
   memcpy(commandBuffer, payload, length);
   commandBuffer[length] = '\0';
@@ -394,15 +433,17 @@ void mqttCallback(char* receivedTopic, byte* payload, unsigned int length) {
   command.trim();
   command.toUpperCase();
 
-  Serial.print("Получен MQTT, топик: ");
-  Serial.print(receivedTopic);
-  Serial.print(", команда: ");
-  Serial.println(command);
+  LOG.print(F("Получен MQTT, топик: "));
+  LOG.print(receivedTopic);
+  LOG.print(F(", команда: "));
+  LOG.println(command);
 
   if (command == "SPRAY" || command == "ON" || command == "1" ||
       command == "TRUE" || command == "P_ON") {
     activateSprayer(F("Распыление по MQTT!"), "mqtt");
   } else if (command == "STATE") {
     mqttNeedToPublish = true;
+  } else {
+    LOG.println(F("Неизвестная команда MQTT проигнорирована"));
   }
 }

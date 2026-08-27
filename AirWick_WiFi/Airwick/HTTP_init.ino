@@ -16,6 +16,7 @@ void HTTP_init(void) {
   HTTP.on("/restart", HTTP_GET, []() {
     String restart = HTTP.arg("device");          // Получаем значение device из запроса
     if (restart == "ok") {                         // Если значение равно Ок
+      LOG.println(F("Получена команда перезагрузки через WEB"));
       HTTP.send(200, "text / plain", "Reset OK"); // Oтправляем ответ Reset OK
       delay(1000);
       ESP.restart();                                // перезагружаем модуль
@@ -41,4 +42,5 @@ void HTTP_init(void) {
   });
   // Запускаем HTTP сервер после регистрации всех обработчиков.
   HTTP.begin();
+  LOG.println(F("HTTP-сервер запущен, порт 80"));
 }

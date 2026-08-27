@@ -26,15 +26,20 @@ void timeSynch(int zone){
     // Настройка соединения с NTP сервером
     configTime(zone * 3600, 0, "pool.ntp.org", "ru.pool.ntp.org");
     int i = 0;
-    Serial.println("\nОжидание времени");
+    LOG.println(F("\nОжидание синхронизации времени"));
     while (!time(nullptr) && i < 10) {
-      Serial.print(".");
+      LOG.print('.');
       i++;
       delay(1000);
     }
-    Serial.println("");
-    Serial.println("Время запущено!");
-    Serial.println(GetTime());
+    LOG.println();
+    if (time(nullptr)) {
+      LOG.println(F("Время синхронизировано"));
+      LOG.println(GetTime());
+    } else {
+      LOG.println(F("Не удалось синхронизировать время"));
+    }
+    LOG.println(F("Синхронизация времени пропущена: Wi-Fi не подключён"));
   }
 }
 
@@ -43,12 +48,17 @@ void handle_time_zone() {
   String zoneText = HTTP.arg("timeZone");
   int zone = zoneText.toInt();
   if (!isValidTimeZoneText(zoneText) || zone < -12 || zone > 14) {
+    LOG.print(F("Часовой пояс отклонён: "));
+    LOG.println(zoneText);
     HTTP.send(400, "application/json",
               "{\"ok\":false,\"error\":\"timezone must be -12..14\"}");
     return;
   }
   jsonWrite(configSetup, "timezone", zone);
   saveConfig();
+  LOG.print(F("Часовой пояс сохранён: UTC"));
+  if (zone >= 0) LOG.print('+');
+  LOG.println(zone);
   HTTP.send(200, "application/json", "{\"ok\":true}");
 }
 

@@ -32,7 +32,10 @@ void migrateNetworkConfig() {
     changed = true;
   }
 
-  if (changed) saveConfig();
+  if (changed) {
+    saveConfig();
+    LOG.println(F("Настройки сети обновлены до текущего формата"));
+  }
 }
 
 bool isValidWifiSsid(const String& ssid) {
@@ -48,12 +51,17 @@ void registerWiFiHandlers() {
     espMode = HTTP.arg("ESP_mode").toInt() ? 1 : 0;
     jsonWrite(configSetup, "ESP_mode", espMode);
     saveConfig();
+    LOG.print(F("Режим Wi-Fi сохранён: "));
+    LOG.println(espMode == 0 ? F("точка доступа") : F("подключение к роутеру"));
     HTTP.send(200, "application/json", "{\"ok\":true}");
   });
 
   HTTP.on("/wifi_multi", HTTP_GET, []() {
-    jsonWrite(configSetup, "wifi_multi", HTTP.arg("wifi_multi").toInt() ? 1 : 0);
+    bool enabled = HTTP.arg("wifi_multi").toInt() != 0;
+    jsonWrite(configSetup, "wifi_multi", enabled ? 1 : 0);
     saveConfig();
+    LOG.print(F("Дополнительные сети Wi-Fi: "));
+    LOG.println(enabled ? F("включены") : F("выключены"));
     HTTP.send(200, "application/json", "{\"ok\":true}");
   });
 
@@ -76,6 +84,7 @@ void registerWiFiHandlers() {
                          (!ssid2.length() ? !password2.length() : true) &&
                          (!ssid3.length() ? !password3.length() : true);
     if (!validNetworks || timeoutSeconds < 1 || timeoutSeconds > 300) {
+      LOG.println(F("Настройки Wi-Fi отклонены: неверный SSID, пароль или тайм-аут"));
       HTTP.send(400, "application/json",
                 "{\"ok\":false,\"error\":\"invalid Wi-Fi settings\"}");
       return;
@@ -90,6 +99,13 @@ void registerWiFiHandlers() {
     ESP_CONN_TIMEOUT = (uint16_t)timeoutSeconds;
     jsonWrite(configSetup, "TimeOut", ESP_CONN_TIMEOUT);
     saveConfig();
+    LOG.print(F("Настройки Wi-Fi сохранены, основная сеть: "));
+    LOG.print(ssid);
+    LOG.print(F(", сетей: "));
+    LOG.print((ssid.length() ? 1 : 0) + (ssid2.length() ? 1 : 0) + (ssid3.length() ? 1 : 0));
+    LOG.print(F(", тайм-аут: "));
+    LOG.print(ESP_CONN_TIMEOUT);
+    LOG.println(F(" с"));
     HTTP.send(200, "application/json", "{\"ok\":true}");
   });
 
@@ -98,6 +114,7 @@ void registerWiFiHandlers() {
     String passwordAP = HTTP.hasArg("passwordAP") ? HTTP.arg("passwordAP") : jsonRead(configSetup, "passwordAP");
     if (!ssidAP.length() || ssidAP.length() > 32 ||
         passwordAP.length() < 8 || passwordAP.length() > 63) {
+      LOG.println(F("Настройки точки доступа отклонены"));
       HTTP.send(400, "application/json",
                 "{\"ok\":false,\"error\":\"invalid access point settings\"}");
       return;
@@ -105,8 +122,16 @@ void registerWiFiHandlers() {
     jsonWrite(configSetup, "ssidAP", ssidAP);
     jsonWrite(configSetup, "passwordAP", passwordAP);
     saveConfig();
+    LOG.print(F("Настройки точки доступа сохранены, SSID: "));
+    LOG.println(ssidAP);
     HTTP.send(200, "application/json", "{\"ok\":true}");
   });
+}
+
+bool keepWiFiRadioAwake() {
+  // Освежитель постоянно питается от сети: радиомодуль Wi-Fi не должен
+  // переходить ни в один из режимов энергосбережения.
+  return WiFi.setSleepMode(WIFI_NONE_SLEEP);
 }
 
 bool startAccessPoint(bool keepStation) {
@@ -116,6 +141,7 @@ bool startAccessPoint(bool keepStation) {
   } else {
     WiFi.mode(WIFI_AP_STA);
   }
+  keepWiFiRadioAwake();
 
   IPAddress apIp(AP_STATIC_IP[0], AP_STATIC_IP[1], AP_STATIC_IP[2], AP_STATIC_IP[3]);
   IPAddress apGateway(AP_STATIC_IP[0], AP_STATIC_IP[1], AP_STATIC_IP[2], 1);
@@ -133,8 +159,9 @@ bool startAccessPoint(bool keepStation) {
   }
 
   delay(100);
-  Serial.print(keepStation ? "Временная точка доступа запущена: " : "Точка доступа запущена: ");
-  Serial.println(WiFi.softAPIP());
+  LOG.print(keepStation ? F("Временная точка доступа запущена: ") : F("Точка доступа запущена: "));
+  LOG.println(WiFi.softAPIP());
+  if (!started) LOG.println(F("Ошибка запуска точки доступа AirWick"));
   return started;
 }
 
@@ -145,10 +172,10 @@ bool StartAPMode() {
 bool applyStaticIpConfig() {
   // Статический адрес выключен — обязательно запускаем DHCP.
   if (!use_static_ip) {
-    Serial.println(F("Статический IP выключен. Включается DHCP."));
+    LOG.println(F("Статический IP выключен. Включается DHCP."));
 
     if (!WiFi.config(0U, 0U, 0U)) {
-      Serial.println(F("Не удалось включить DHCP."));
+      LOG.println(F("Не удалось включить DHCP."));
       return false;
     }
 
@@ -157,20 +184,20 @@ bool applyStaticIpConfig() {
 
   // Если настройки статического IP повреждены — используем DHCP.
   if (!staticIpConfigValid) {
-    Serial.println(F("Неверные настройки статического IP. Включается DHCP."));
+    LOG.println(F("Неверные настройки статического IP. Включается DHCP."));
     WiFi.config(0U, 0U, 0U);
     return false;
   }
 
   // Применяем статический IP.
   if (!WiFi.config(Static_IP, Gateway, Subnet, DNS1, DNS2)) {
-    Serial.println(F("Не удалось применить статический IP. Включается DHCP."));
+    LOG.println(F("Не удалось применить статический IP. Включается DHCP."));
     WiFi.config(0U, 0U, 0U);
     return false;
   }
 
-  Serial.print(F("Используется статический IP: "));
-  Serial.println(Static_IP);
+  LOG.print(F("Используется статический IP: "));
+  LOG.println(Static_IP);
   return true;
 }
 
@@ -191,21 +218,144 @@ uint8_t addConfiguredNetworks() {
     if (ssid2.length()) {
       wifiMulti.addAP(ssid2.c_str(), password2.c_str());
       count++;
-      Serial.print("Добавлена сеть 2: ");
-      Serial.println(ssid2);
+      LOG.print(F("Добавлена сеть 2: "));
+      LOG.println(ssid2);
     }
     if (ssid3.length()) {
       wifiMulti.addAP(ssid3.c_str(), password3.c_str());
       count++;
-      Serial.print("Добавлена сеть 3: ");
-      Serial.println(ssid3);
+      LOG.print(F("Добавлена сеть 3: "));
+      LOG.println(ssid3);
     }
   }
   return count;
 }
 
+bool stationIpIsValid(const IPAddress& address) {
+  return address[0] || address[1] || address[2] || address[3];
+}
+
+bool stationHasValidConnection() {
+  return WiFi.status() == WL_CONNECTED && stationIpIsValid(WiFi.localIP());
+}
+
+bool sameIpAddress(const IPAddress& first, const IPAddress& second) {
+  for (uint8_t i = 0; i < 4; i++) {
+    if (first[i] != second[i]) return false;
+  }
+  return true;
+}
+
+const __FlashStringHelper* wifiDisconnectReasonText(uint8_t reason) {
+  switch (reason) {
+    case 1:   return F("неизвестная причина");
+    case 2:   return F("истекла авторизация");
+    case 3:   return F("роутер завершил авторизацию");
+    case 4:   return F("истекло подключение к точке доступа");
+    case 8:   return F("точка доступа завершила соединение");
+    case 15:  return F("тайм-аут четырёхстороннего рукопожатия");
+    case 200: return F("потеряны маяки роутера");
+    case 201: return F("сеть не найдена");
+    case 202: return F("ошибка авторизации");
+    case 203: return F("ошибка подключения к точке доступа");
+    case 204: return F("тайм-аут рукопожатия");
+    default:  return F("другая причина");
+  }
+}
+
+void registerWiFiEventHandlers() {
+  wifiGotIpEventHandler = WiFi.onStationModeGotIP(
+      [](const WiFiEventStationModeGotIP&) {
+        wifiGotIpEventPending = true;
+      });
+
+  wifiDisconnectedEventHandler = WiFi.onStationModeDisconnected(
+      [](const WiFiEventStationModeDisconnected& event) {
+        lastWiFiDisconnectReason = (uint8_t)event.reason;
+        wifiDisconnectEventPending = true;
+      });
+}
+
+bool processPendingWiFiEvents() {
+  bool hadDisconnectEvent = wifiDisconnectEventPending;
+  bool hadGotIpEvent = wifiGotIpEventPending;
+
+  if (hadDisconnectEvent) {
+    uint8_t reason = lastWiFiDisconnectReason;
+    wifiDisconnectEventPending = false;
+    LOG.print(F("Событие отключения Wi-Fi, код "));
+    LOG.print(reason);
+    LOG.print(F(": "));
+    LOG.println(wifiDisconnectReasonText(reason));
+  }
+
+  if (hadGotIpEvent) {
+    wifiGotIpEventPending = false;
+    LOG.print(F("Wi-Fi получил IP-адрес: "));
+    LOG.println(WiFi.localIP());
+  }
+
+  // На некоторых версиях ядра ESP8266 WiFi.status() некоторое время может
+  // оставаться WL_CONNECTED после фактического обрыва. Событие отключения
+  // считаем приоритетным, если после него ещё не было события получения IP.
+  return hadDisconnectEvent && !hadGotIpEvent;
+}
+
+bool getConfiguredNetwork(uint8_t requestedIndex, String& ssid, String& password) {
+  uint8_t foundIndex = 0;
+  bool useAdditionalNetworks = jsonReadtoInt(configSetup, "wifi_multi") != 0;
+
+  for (uint8_t slot = 0; slot < 3; slot++) {
+    if (slot > 0 && !useAdditionalNetworks) break;
+
+    String ssidKey = "ssid";
+    String passwordKey = "password";
+    if (slot > 0) {
+      ssidKey += String(slot + 1);
+      passwordKey += String(slot + 1);
+    }
+    String candidateSsid = jsonRead(configSetup, ssidKey);
+    if (!candidateSsid.length()) continue;
+
+    if (foundIndex == requestedIndex) {
+      ssid = candidateSsid;
+      password = jsonRead(configSetup, passwordKey);
+      return true;
+    }
+    foundIndex++;
+  }
+
+  return false;
+}
+
+bool beginNextConfiguredNetwork() {
+  if (configuredWiFiNetworks == 0) return false;
+
+  uint8_t requestedIndex = nextWiFiNetworkIndex % configuredWiFiNetworks;
+  String ssid;
+  String password;
+  if (!getConfiguredNetwork(requestedIndex, ssid, password)) {
+    nextWiFiNetworkIndex = 0;
+    requestedIndex = 0;
+    if (!getConfiguredNetwork(0, ssid, password)) return false;
+  }
+
+  WiFi.mode(apFallbackActive ? WIFI_AP_STA : WIFI_STA);
+  keepWiFiRadioAwake();
+  applyStaticIpConfig();
+
+  LOG.print(F("Попытка подключения к Wi-Fi: "));
+  LOG.println(ssid);
+  WiFi.begin(ssid.c_str(), password.c_str());
+
+  nextWiFiNetworkIndex = (requestedIndex + 1) % configuredWiFiNetworks;
+  lastRouterRetryMs = millis();
+  return true;
+}
+
 void WIFIinit() {
   registerWiFiHandlers();
+  registerWiFiEventHandlers();
 
   espMode = jsonReadtoInt(configSetup, "ESP_mode") ? 1 : 0;
   int configuredTimeout = jsonReadtoInt(configSetup, "TimeOut");
@@ -215,56 +365,66 @@ void WIFIinit() {
   WiFi.persistent(false);
   WiFi.setAutoReconnect(true);
 
-  Serial.print("Режим Wi-Fi: ");
-  Serial.println(espMode == 0 ? "точка доступа" : "подключение к роутеру");
+  LOG.print(F("Режим Wi-Fi: "));
+  LOG.println(espMode == 0 ? F("точка доступа") : F("подключение к роутеру"));
 
   if (espMode == 0) {
     StartAPMode();
     routerConnected = false;
+    lastStationIP = IPAddress();
     return;
   }
 
   WiFi.mode(WIFI_STA);
+  if (keepWiFiRadioAwake()) {
+    LOG.println(F("Энергосбережение Wi-Fi полностью выключено: радиомодуль всегда активен"));
+  } else {
+    LOG.println(F("Не удалось выключить энергосбережение Wi-Fi"));
+  }
   applyStaticIpConfig();
   configuredWiFiNetworks = addConfiguredNetworks();
   if (configuredWiFiNetworks == 0) {
-    Serial.println("SSID не задан. Запускается точка доступа.");
-    StartAPMode();
-    apFallbackActive = true;
+    LOG.println(F("SSID не задан. Запускается точка доступа."));
+    apFallbackActive = StartAPMode();
     apFallbackStartMs = millis();
     lastRouterRetryMs = millis();
+    lastStationIP = IPAddress();
     return;
   }
 
-  Serial.print("Подключение к Wi-Fi");
+  LOG.print(F("Подключение к Wi-Fi"));
   uint32_t startTime = millis();
   uint32_t timeout = (uint32_t)ESP_CONN_TIMEOUT * 1000UL;
   while (wifiMulti.run() != WL_CONNECTED) {
     delay(500);
     yield();
-    Serial.print('.');
+    LOG.print('.');
     if (millis() - startTime >= timeout) {
-      Serial.println("\nНе удалось подключиться. Запускается временная точка доступа.");
-      startAccessPoint(true);
+      LOG.println(F("\nНе удалось подключиться. Запускается временная точка доступа."));
+      bool accessPointStarted = startAccessPoint(true);
       routerConnected = false;
-      apFallbackActive = true;
+      apFallbackActive = accessPointStarted;
       apFallbackStartMs = millis();
       lastRouterRetryMs = millis();
+      lastStationIP = IPAddress();
       return;
     }
   }
 
+  keepWiFiRadioAwake();
   routerConnected = true;
   apFallbackActive = false;
   apFallbackStartMs = 0;
-  Serial.println("\nWi-Fi подключён!");
-  Serial.print("SSID: ");
-  Serial.println(WiFi.SSID());
-  Serial.print("IP: ");
-  Serial.println(WiFi.localIP());
-  Serial.print("RSSI: ");
-  Serial.print(WiFi.RSSI());
-  Serial.println(" dBm");
+  lastRouterRetryMs = millis();
+  lastStationIP = WiFi.localIP();
+  LOG.println(F("\nWi-Fi подключён!"));
+  LOG.print(F("SSID: "));
+  LOG.println(WiFi.SSID());
+  LOG.print(F("IP: "));
+  LOG.println(WiFi.localIP());
+  LOG.print(F("RSSI: "));
+  LOG.print(WiFi.RSSI());
+  LOG.println(F(" dBm"));
 }
 
 void stopSSDP() {
@@ -278,9 +438,19 @@ void restartSSDP() {
     return;
   }
   if (ssdpInitialized) SSDP.end();
-  Serial.println("Инициализация SSDP...");
+  LOG.println(F("Инициализация SSDP..."));
   SSDP_init();
   ssdpInitialized = true;
+}
+
+void restartNetworkServices() {
+  keepWiFiRadioAwake();
+  HTTP.stop();
+  delay(1);
+  HTTP.begin();
+  restartDiscoveryUdp();
+  restartSSDP();
+  LOG.println(F("HTTP, UDP-поиск и SSDP перезапущены"));
 }
 
 void checkWiFiFallback() {
@@ -289,11 +459,15 @@ void checkWiFiFallback() {
     return;
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
+  if (stationHasValidConnection()) {
     if (apFallbackActive) {
-      WiFi.softAPdisconnect(true);
-      WiFi.mode(WIFI_STA);
-      Serial.println("Wi-Fi восстановлен, временная точка доступа выключена.");
+      if (WiFi.softAPdisconnect(true)) {
+        keepWiFiRadioAwake();
+        LOG.println(F("Wi-Fi восстановлен, временная точка доступа выключена."));
+      } else {
+        LOG.println(F("Не удалось выключить временную точку доступа"));
+        return;
+      }
     }
     apFallbackActive = false;
     apFallbackStartMs = 0;
@@ -303,57 +477,83 @@ void checkWiFiFallback() {
   if (!apFallbackActive) {
     if (apFallbackStartMs == 0) apFallbackStartMs = millis();
     if (millis() - apFallbackStartMs >= WIFI_FALLBACK_DELAY) {
-      Serial.println("Wi-Fi потерян. Запускается временная точка доступа.");
-      startAccessPoint(true);
-      apFallbackActive = true;
-      lastRouterRetryMs = millis();
-      restartSSDP();
+      LOG.println(F("Wi-Fi потерян. Запускается временная точка доступа."));
+      if (startAccessPoint(true)) {
+        apFallbackActive = true;
+        lastRouterRetryMs = millis();
+      } else {
+        LOG.println(F("Не удалось запустить временную точку доступа"));
+        apFallbackStartMs = millis();
+      }
     }
   }
 }
 
 void wifiReconnect() {
-  bool currentlyConnected = WiFi.status() == WL_CONNECTED;
+  bool disconnectEventRequiresRecovery = processPendingWiFiEvents();
 
-  if (currentlyConnected && !routerConnected) {
-    routerConnected = true;
-    routerRetryActive = false;
-    apFallbackStartMs = 0;
-    Serial.println("Wi-Fi подключён!");
-    Serial.print("SSID: ");
-    Serial.println(WiFi.SSID());
-    Serial.print("IP: ");
-    Serial.println(WiFi.localIP());
-    restartSSDP();
+  uint32_t now = millis();
+  bool currentlyConnected = stationHasValidConnection() &&
+                            !disconnectEventRequiresRecovery;
+
+  if (currentlyConnected) {
+    IPAddress currentIP = WiFi.localIP();
+    bool ipChanged = routerConnected && !sameIpAddress(currentIP, lastStationIP);
+
+    if (!routerConnected || ipChanged) {
+      routerConnected = true;
+      apFallbackStartMs = 0;
+      lastRouterRetryMs = now;
+      lastStationIP = currentIP;
+      LOG.println(ipChanged ? F("IP-адрес Wi-Fi изменился") : F("Wi-Fi восстановлен!"));
+      LOG.print(F("SSID: "));
+      LOG.println(WiFi.SSID());
+      LOG.print(F("IP: "));
+      LOG.println(currentIP);
+      LOG.print(F("RSSI: "));
+      LOG.print(WiFi.RSSI());
+      LOG.println(F(" dBm"));
+      restartNetworkServices();
+    }
+
+    if (lastWiFiDiagnosticMs == 0 ||
+        now - lastWiFiDiagnosticMs >= WIFI_DIAGNOSTIC_INTERVAL) {
+      lastWiFiDiagnosticMs = now;
+      LOG.print(F("Wi-Fi работает: IP="));
+      LOG.print(currentIP);
+      LOG.print(F(", RSSI="));
+      LOG.print(WiFi.RSSI());
+      LOG.print(F(" dBm, свободная память="));
+      LOG.print(ESP.getFreeHeap());
+      LOG.println(F(" байт"));
+    }
     return;
   }
 
-  if (!currentlyConnected && routerConnected && espMode == 1) {
+  if (routerConnected && espMode == 1) {
     routerConnected = false;
-    routerRetryActive = false;
+    lastStationIP = IPAddress();
     stopSSDP();
-    apFallbackStartMs = millis();
+    apFallbackStartMs = now;
+    LOG.print(F("Соединение с роутером потеряно, status="));
+    LOG.print((int)WiFi.status());
+    LOG.print(F(", свободная память="));
+    LOG.print(ESP.getFreeHeap());
+    LOG.println(F(" байт"));
+
+    lastRouterRetryMs = now;
+    keepWiFiRadioAwake();
+    if (WiFi.reconnect()) {
+      LOG.println(F("Запущено немедленное переподключение к последней сети"));
+    } else {
+      LOG.println(F("Последняя сеть недоступна, используется сохранённый список"));
+      beginNextConfiguredNetwork();
+    }
+    return;
   }
 
-  if (espMode == 1 && configuredWiFiNetworks > 0 && !currentlyConnected) {
-    uint32_t now = millis();
-    if (!routerRetryActive && now - lastRouterRetryMs >= WIFI_ROUTER_RETRY_INTERVAL) {
-      routerRetryActive = true;
-      routerRetryStartMs = now;
-      lastRouterRetryStepMs = 0;
-      lastRouterRetryMs = now;
-      Serial.println("Повторная попытка подключения к роутеру...");
-    }
-
-    if (routerRetryActive) {
-      if (now - routerRetryStartMs >= WIFI_ROUTER_RETRY_WINDOW) {
-        routerRetryActive = false;
-        Serial.println("Роутер пока недоступен. Следующая попытка через 5 минут.");
-      } else if (lastRouterRetryStepMs == 0 ||
-                 now - lastRouterRetryStepMs >= WIFI_ROUTER_RETRY_STEP) {
-        lastRouterRetryStepMs = now;
-        wifiMulti.run();
-      }
-    }
+  if (espMode == 1 && configuredWiFiNetworks > 0 &&
+      now - lastRouterRetryMs >= WIFI_ROUTER_RETRY_INTERVAL) {
+    beginNextConfiguredNetwork();
   }
 }

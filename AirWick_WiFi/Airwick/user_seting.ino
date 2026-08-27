@@ -10,12 +10,16 @@ HTTP.on("/set_ip", handle_set_static_ip);   // Установки статичн
 void handle_lightTreshold() {
   int requestedTreshold = HTTP.arg("light").toInt();
   if (requestedTreshold < 10 || requestedTreshold > 1023) {
+    LOG.print(F("Отклонено неверное значение порога освещения: "));
+    LOG.println(requestedTreshold);
     HTTP.send(400, "application/json", "{\"ok\":false,\"error\":\"light must be 10..1023\"}");
     return;
   }
   lightTreshold = (uint16_t)requestedTreshold;
   jsonWrite(configSetup, "light", lightTreshold);
   saveConfig();
+  LOG.print(F("Порог освещения сохранён: "));
+  LOG.println(lightTreshold);
   HTTP.send(200, "application/json", "{\"should_refresh\":true}");
 }
 
@@ -26,6 +30,8 @@ void handle_lightTresholdm() {
   lightTreshold = (uint16_t)nextTreshold;
   jsonWrite(configSetup, "light", lightTreshold);
   saveConfig();
+  LOG.print(F("Порог освещения сохранён: "));
+  LOG.println(lightTreshold);
   HTTP.send(200, "application/json", "{\"should_refresh\":true}");
 }
 
@@ -36,6 +42,8 @@ void handle_lightTresholdp() {
   lightTreshold = (uint16_t)nextTreshold;
   jsonWrite(configSetup, "light", lightTreshold);
   saveConfig();
+  LOG.print(F("Порог освещения сохранён: "));
+  LOG.println(lightTreshold);
   HTTP.send(200, "application/json", "{\"should_refresh\":true}");
 }
 
@@ -70,12 +78,15 @@ void handle_use_static_ip() {
   uint8_t requestedMode = HTTP.arg("s_IP").toInt() ? 1 : 0;
   init_ip();
   if (requestedMode && !staticIpConfigValid) {
+    LOG.println(F("Статический IP не включён: неверные параметры IPv4"));
     HTTP.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid static IP configuration\"}");
     return;
   }
   use_static_ip = requestedMode;
   jsonWrite(configSetup, "s_IP", use_static_ip);
   saveConfig();
+  LOG.print(F("Использование статического IP: "));
+  LOG.println(use_static_ip ? F("включено") : F("выключено"));
   HTTP.send(200, "application/json", "{\"ok\":true,\"should_refresh\":true}");
 }
 
@@ -91,6 +102,7 @@ void handle_set_static_ip ()   {
                  isNonZeroIp(requestedIp) && isNonZeroIp(requestedGateway) &&
                  isNonZeroIp(requestedDns) && isValidSubnetMask(requestedSubnet);
     if (!valid) {
+      LOG.println(F("Настройки статического IP отклонены: неверные параметры IPv4"));
       HTTP.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid IPv4 settings\"}");
       return;
     }
@@ -109,6 +121,14 @@ void handle_set_static_ip ()   {
     jsonWrite(configIP, "dns", requestedDns.toString());
     writeFile("config_ip.json", configIP );
     init_ip();
+    LOG.print(F("Настройки статического IP сохранены: IP="));
+    LOG.print(requestedIp);
+    LOG.print(F(", шлюз="));
+    LOG.print(requestedGateway);
+    LOG.print(F(", маска="));
+    LOG.print(requestedSubnet);
+    LOG.print(F(", DNS="));
+    LOG.println(requestedDns);
     HTTP.send(200, "application/json", "{\"should_refresh\":true}");
 }
 

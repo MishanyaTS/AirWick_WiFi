@@ -17,6 +17,7 @@ void registerSSDPHandlers() {
       }
     }
     if (!validName) {
+      LOG.println(F("Имя AirWick отклонено: недопустимые символы"));
       HTTP.send(400, "application/json",
                 "{\"ok\":false,\"error\":\"invalid device name\"}");
       return;
@@ -25,6 +26,8 @@ void registerSSDPHandlers() {
     configSetup = jsonWrite(configSetup, "SSDP", ssdp);
     SSDP.setName(jsonRead(configSetup, "SSDP"));
     saveConfig();                       // Функция сохранения данных во Flash
+    LOG.print(F("Имя AirWick сохранено: "));
+    LOG.println(ssdp);
     HTTP.send(200, "application/json", "{\"ok\":true}");
   });
 
@@ -50,4 +53,5 @@ void SSDP_init(void) {
   SSDP.setManufacturer("MishanyaTS");
   SSDP.setManufacturerURL("https://github.com/MishanyaTS");
   SSDP.begin();
+  LOG.println(F("SSDP запущен"));
 }

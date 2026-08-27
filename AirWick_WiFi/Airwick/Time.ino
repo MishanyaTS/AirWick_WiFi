@@ -39,6 +39,7 @@ void timeSynch(int zone){
     } else {
       LOG.println(F("Не удалось синхронизировать время"));
     }
+  } else {
     LOG.println(F("Синхронизация времени пропущена: Wi-Fi не подключён"));
   }
 }

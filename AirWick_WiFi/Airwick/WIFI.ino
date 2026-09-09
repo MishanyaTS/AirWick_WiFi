@@ -13,6 +13,78 @@ void migrateNetworkConfig() {
     jsonWrite(configSetup, "TimeOut", 60);
     changed = true;
   }
+  int configuredPowerMode;
+  if (!jsonHasKey(configSetup, "power_mode")) {
+    bool legacyEnabled =
+        (jsonHasKey(configSetup, "lowPWR") &&
+         jsonReadtoInt(configSetup, "lowPWR") != 0) ||
+        (jsonHasKey(configSetup, "battery_mode") &&
+         jsonReadtoInt(configSetup, "battery_mode") != 0);
+    configuredPowerMode = legacyEnabled ? POWER_SAVE_LIGHT : POWER_SAVE_OFF;
+    jsonWrite(configSetup, "power_mode", configuredPowerMode);
+    changed = true;
+  } else {
+    int storedPowerMode = jsonReadtoInt(configSetup, "power_mode");
+    configuredPowerMode = storedPowerMode == POWER_SAVE_OFF ?
+                          POWER_SAVE_OFF : POWER_SAVE_LIGHT;
+    if (storedPowerMode != configuredPowerMode) {
+      jsonWrite(configSetup, "power_mode", configuredPowerMode);
+      changed = true;
+    }
+  }
+
+  int legacyPowerFlag = configuredPowerMode == POWER_SAVE_LIGHT ? 1 : 0;
+  if (!jsonHasKey(configSetup, "battery_mode") ||
+      jsonReadtoInt(configSetup, "battery_mode") != legacyPowerFlag) {
+    jsonWrite(configSetup, "battery_mode", legacyPowerFlag);
+    changed = true;
+  }
+  if (!jsonHasKey(configSetup, "lowPWR") ||
+      jsonReadtoInt(configSetup, "lowPWR") != legacyPowerFlag) {
+    jsonWrite(configSetup, "lowPWR", legacyPowerFlag);
+    changed = true;
+  }
+
+  int powerSavingSchema = jsonReadtoInt(configSetup, "power_saving_schema");
+  if (!jsonHasKey(configSetup, "power_saving_schema") ||
+      powerSavingSchema != POWER_SAVING_SCHEMA_VERSION) {
+    int configuredSleepSeconds = jsonHasKey(configSetup, "light_sleep_seconds") ?
+        jsonReadtoInt(configSetup, "light_sleep_seconds") :
+        jsonReadtoInt(configSetup, "deep_sleep_seconds");
+    if (configuredSleepSeconds < LIGHT_SLEEP_MIN_SECONDS ||
+        configuredSleepSeconds > LIGHT_SLEEP_MAX_SECONDS) {
+      configuredSleepSeconds = 20;
+    }
+
+    int configuredAwakeSeconds = jsonHasKey(configSetup, "light_awake_seconds") ?
+        jsonReadtoInt(configSetup, "light_awake_seconds") :
+        jsonReadtoInt(configSetup, "deep_awake_seconds");
+    if (configuredAwakeSeconds < LIGHT_AWAKE_MIN_SECONDS ||
+        configuredAwakeSeconds > LIGHT_AWAKE_MAX_SECONDS) {
+      configuredAwakeSeconds = 5;
+    }
+
+    jsonWrite(configSetup, "power_saving_schema", POWER_SAVING_SCHEMA_VERSION);
+    jsonWrite(configSetup, "light_sleep_seconds", configuredSleepSeconds);
+    jsonWrite(configSetup, "light_awake_seconds", configuredAwakeSeconds);
+    changed = true;
+  } else {
+    int configuredSleepSeconds = jsonReadtoInt(configSetup, "light_sleep_seconds");
+    if (!jsonHasKey(configSetup, "light_sleep_seconds") ||
+        configuredSleepSeconds < LIGHT_SLEEP_MIN_SECONDS ||
+        configuredSleepSeconds > LIGHT_SLEEP_MAX_SECONDS) {
+      jsonWrite(configSetup, "light_sleep_seconds", 20);
+      changed = true;
+    }
+
+    int configuredAwakeSeconds = jsonReadtoInt(configSetup, "light_awake_seconds");
+    if (!jsonHasKey(configSetup, "light_awake_seconds") ||
+        configuredAwakeSeconds < LIGHT_AWAKE_MIN_SECONDS ||
+        configuredAwakeSeconds > LIGHT_AWAKE_MAX_SECONDS) {
+      jsonWrite(configSetup, "light_awake_seconds", 5);
+      changed = true;
+    }
+  }
 
   const char* optionalKeys[] = {"ssid2", "password2", "ssid3", "password3"};
   for (uint8_t i = 0; i < 4; i++) {
@@ -46,6 +118,98 @@ bool isValidWifiPassword(const String& password) {
   return password.length() == 0 || (password.length() >= 8 && password.length() <= 63);
 }
 
+bool parsePowerNumber(const String& value, int minimumValue,
+                      int maximumValue, int& result) {
+  if (!value.length()) return false;
+  for (size_t i = 0; i < value.length(); i++) {
+    if (!isDigit(value[i])) return false;
+  }
+  result = value.toInt();
+  return result >= minimumValue && result <= maximumValue;
+}
+
+const __FlashStringHelper* powerSavingModeText(uint8_t mode) {
+  return mode == POWER_SAVE_LIGHT ? F("включено") :
+                                    F("отключено");
+}
+
+bool keepWiFiRadioAwake() {
+  return WiFi.setSleepMode(WIFI_NONE_SLEEP);
+}
+
+bool applyWiFiPowerMode() {
+  return keepWiFiRadioAwake();
+}
+
+bool setPowerSavingMode(uint8_t requestedMode, bool persist) {
+  if (requestedMode > POWER_SAVE_LIGHT) return false;
+  powerSavingMode = requestedMode;
+  clearPowerSavingRuntimeState();
+
+  if (persist) {
+    jsonWrite(configSetup, "power_mode", powerSavingMode);
+    jsonWrite(configSetup, "battery_mode",
+              powerSavingMode == POWER_SAVE_LIGHT ? 1 : 0);
+    jsonWrite(configSetup, "lowPWR",
+              powerSavingMode == POWER_SAVE_LIGHT ? 1 : 0);
+    saveConfig();
+  }
+
+  bool applied = applyWiFiPowerMode();
+  LOG.print(F("Энергосбережение сохранено: "));
+  LOG.println(powerSavingModeText(powerSavingMode));
+  return applied;
+}
+
+void savePowerSavingModeFromWeb(uint8_t requestedMode) {
+  bool applied = setPowerSavingMode(requestedMode, true);
+  if (compatiblePowerSavingActive()) notePowerSavingWebActivity();
+
+  DynamicJsonDocument doc(384);
+  doc["ok"] = applied;
+  doc["power_mode"] = powerSavingMode;
+  doc["wifi_sleep"] = "none";
+  doc["light_sleep_enabled"] = powerSavingMode == POWER_SAVE_LIGHT;
+  doc["light_sleep_scheduled"] = compatiblePowerSleepAllowed();
+  doc["light_sleep_in"] = compatiblePowerSecondsUntilSleep();
+  doc["restart_required"] = false;
+  String response;
+  serializeJson(doc, response);
+  HTTP.send(200, "application/json; charset=utf-8", response);
+}
+
+void handleCompatibleSleepSettings() {
+  int sleepSeconds;
+  int awakeSeconds;
+  bool valid = HTTP.hasArg("sleep_seconds") &&
+               HTTP.hasArg("awake_seconds") &&
+               parsePowerNumber(HTTP.arg("sleep_seconds"),
+                                LIGHT_SLEEP_MIN_SECONDS,
+                                LIGHT_SLEEP_MAX_SECONDS, sleepSeconds) &&
+               parsePowerNumber(HTTP.arg("awake_seconds"),
+                                LIGHT_AWAKE_MIN_SECONDS,
+                                LIGHT_AWAKE_MAX_SECONDS, awakeSeconds);
+  if (!valid) {
+    HTTP.send(400, "application/json",
+              "{\"ok\":false,\"error\":\"invalid light sleep settings\"}");
+    return;
+  }
+
+  lightSleepSeconds = (uint16_t)sleepSeconds;
+  lightAwakeSeconds = (uint16_t)awakeSeconds;
+  jsonWrite(configSetup, "light_sleep_seconds", lightSleepSeconds);
+  jsonWrite(configSetup, "light_awake_seconds", lightAwakeSeconds);
+  saveConfig();
+  notePowerSavingWebActivity();
+  LOG.print(F("Параметры совместимого режима сохранены: сон "));
+  LOG.print(lightSleepSeconds);
+  LOG.print(F(" с, окно сети "));
+  LOG.print(lightAwakeSeconds);
+  LOG.println(F(" с"));
+  HTTP.send(200, "application/json",
+            "{\"ok\":true,\"should_refresh\":true}");
+}
+
 void registerWiFiHandlers() {
   HTTP.on("/ESP_mode", HTTP_GET, []() {
     espMode = HTTP.arg("ESP_mode").toInt() ? 1 : 0;
@@ -63,6 +227,73 @@ void registerWiFiHandlers() {
     LOG.print(F("Дополнительные сети Wi-Fi: "));
     LOG.println(enabled ? F("включены") : F("выключены"));
     HTTP.send(200, "application/json", "{\"ok\":true}");
+  });
+
+  HTTP.on("/power_mode", HTTP_GET, []() {
+    int requestedMode;
+    if (!HTTP.hasArg("power_mode") ||
+        !parsePowerNumber(HTTP.arg("power_mode"), POWER_SAVE_OFF,
+                          POWER_SAVE_LIGHT, requestedMode)) {
+      HTTP.send(400, "application/json",
+                "{\"ok\":false,\"error\":\"power_mode must be 0 or 1\"}");
+      return;
+    }
+    savePowerSavingModeFromWeb((uint8_t)requestedMode);
+  });
+
+  HTTP.on("/battery_mode", HTTP_GET, []() {
+    int requestedMode;
+    if (!HTTP.hasArg("battery_mode") ||
+        !parsePowerNumber(HTTP.arg("battery_mode"), 0, 1, requestedMode)) {
+      HTTP.send(400, "application/json",
+                "{\"ok\":false,\"error\":\"battery_mode must be 0 or 1\"}");
+      return;
+    }
+    savePowerSavingModeFromWeb(requestedMode ? POWER_SAVE_LIGHT : POWER_SAVE_OFF);
+  });
+
+  HTTP.on("/lowpwr", HTTP_GET, []() {
+    int requestedMode;
+    String value = HTTP.hasArg("onoff") ? HTTP.arg("onoff") :
+                   HTTP.hasArg("val") ? HTTP.arg("val") : "";
+    if (!parsePowerNumber(value, 0, 1, requestedMode)) {
+      HTTP.send(400, "application/json",
+                "{\"ok\":false,\"error\":\"onoff/val must be 0 or 1\"}");
+      return;
+    }
+    savePowerSavingModeFromWeb(requestedMode ? POWER_SAVE_LIGHT : POWER_SAVE_OFF);
+  });
+
+  HTTP.on("/light_sleep_settings", HTTP_GET, handleCompatibleSleepSettings);
+  HTTP.on("/deep_sleep_settings", HTTP_GET, handleCompatibleSleepSettings);
+  HTTP.on("/power_awake", HTTP_GET, []() {
+    if (!compatiblePowerSavingActive()) {
+      HTTP.send(200, "application/json",
+                "{\"ok\":true,\"active\":false}");
+      return;
+    }
+    holdCompatiblePowerForMaintenance();
+    LOG.println(F("Light Sleep отложен на 10 минут через WEB"));
+    HTTP.send(200, "application/json",
+              "{\"ok\":true,\"active\":true,\"seconds\":600}");
+  });
+
+  HTTP.on("/power_status", HTTP_GET, []() {
+    notePowerSavingWebActivity();
+    DynamicJsonDocument doc(512);
+    doc["power_mode"] = powerSavingMode;
+    doc["power_mode_text"] = powerSavingMode == POWER_SAVE_LIGHT ?
+                             "compatible" : "off";
+    doc["sleep_seconds"] = lightSleepSeconds;
+    doc["awake_seconds"] = lightAwakeSeconds;
+    doc["dark"] = lightLevel <= lightTreshold;
+    doc["timers_idle"] = compatiblePowerTimersIdle();
+    doc["sleep_allowed"] = compatiblePowerSleepAllowed();
+    doc["sleep_in"] = compatiblePowerSecondsUntilSleep();
+    doc["maintenance_hold"] = lightSleepHoldActive;
+    String response;
+    serializeJson(doc, response);
+    HTTP.send(200, "application/json; charset=utf-8", response);
   });
 
   HTTP.on("/ssid", HTTP_GET, []() {
@@ -128,12 +359,6 @@ void registerWiFiHandlers() {
   });
 }
 
-bool keepWiFiRadioAwake() {
-  // Освежитель постоянно питается от сети: радиомодуль Wi-Fi не должен
-  // переходить ни в один из режимов энергосбережения.
-  return WiFi.setSleepMode(WIFI_NONE_SLEEP);
-}
-
 bool startAccessPoint(bool keepStation) {
   if (!keepStation) {
     WiFi.disconnect();
@@ -170,7 +395,6 @@ bool StartAPMode() {
 }
 
 bool applyStaticIpConfig() {
-  // Статический адрес выключен — обязательно запускаем DHCP.
   if (!use_static_ip) {
     LOG.println(F("Статический IP выключен. Включается DHCP."));
 
@@ -182,14 +406,12 @@ bool applyStaticIpConfig() {
     return true;
   }
 
-  // Если настройки статического IP повреждены — используем DHCP.
   if (!staticIpConfigValid) {
     LOG.println(F("Неверные настройки статического IP. Включается DHCP."));
     WiFi.config(0U, 0U, 0U);
     return false;
   }
 
-  // Применяем статический IP.
   if (!WiFi.config(Static_IP, Gateway, Subnet, DNS1, DNS2)) {
     LOG.println(F("Не удалось применить статический IP. Включается DHCP."));
     WiFi.config(0U, 0U, 0U);
@@ -235,6 +457,63 @@ bool stationIpIsValid(const IPAddress& address) {
   return address[0] || address[1] || address[2] || address[3];
 }
 
+const uint32_t WIFI_HEALTH_CHECK_INTERVAL = 30000UL;
+const uint32_t WIFI_HEALTH_PASSIVE_INTERVAL = 300000UL;
+const uint32_t WIFI_HEALTH_PING_GUARD_MS = 4000UL;
+const uint32_t WIFI_WEB_SELF_TEST_INTERVAL = 45000UL;
+const uint32_t WIFI_WEB_SELF_TEST_TIMEOUT = 8000UL;
+const uint32_t WIFI_STACK_RECOVERY_COOLDOWN = 120000UL;
+const uint32_t WIFI_AP_HEALTH_CHECK_INTERVAL = 30000UL;
+const uint8_t WIFI_HEALTH_FAILURE_LIMIT = 3;
+const uint8_t WIFI_HEALTH_INITIAL_PROBE_LIMIT = 3;
+
+static struct ping_option wifiGatewayPingOption;
+volatile bool wifiGatewayPingInProgress = false;
+volatile bool wifiGatewayPingFinished = false;
+volatile bool wifiGatewayPingReceived = false;
+volatile bool wifiGatewayPingIgnoreResult = false;
+uint32_t wifiGatewayPingStartedMs = 0;
+uint32_t lastWifiGatewayPingMs = 0;
+uint32_t lastWiFiStackRecoveryMs = 0;
+uint32_t lastAccessPointHealthCheckMs = 0;
+uint8_t wifiGatewayPingFailureCount = 0;
+uint8_t wifiGatewayInitialProbeFailures = 0;
+bool wifiGatewayPingSupported = false;
+bool wifiRecoveryValidationPending = false;
+IPAddress wifiGatewayPingTarget;
+IPAddress wifiKnownGateway;
+
+WiFiClient wifiWebHealthClient;
+bool wifiWebHealthTestInProgress = false;
+bool wifiWebHealthTestSupported = false;
+uint32_t wifiWebHealthTestStartedMs = 0;
+uint32_t lastWifiWebHealthTestMs = 0;
+uint8_t wifiWebHealthFailureCount = 0;
+uint8_t wifiWebHealthInitialProbeFailures = 0;
+uint8_t wifiWebHealthResponseLength = 0;
+char wifiWebHealthResponse[48];
+IPAddress wifiWebHealthTarget;
+
+static void wifiGatewayPingReceiveCallback(void*, void*) {
+  if (!wifiGatewayPingIgnoreResult) wifiGatewayPingReceived = true;
+}
+
+static void wifiGatewayPingFinishedCallback(void*, void* responseData) {
+  if (wifiGatewayPingIgnoreResult) {
+    wifiGatewayPingIgnoreResult = false;
+    wifiGatewayPingInProgress = false;
+    wifiGatewayPingFinished = false;
+    wifiGatewayPingReceived = false;
+    return;
+  }
+  struct ping_resp* response = (struct ping_resp*)responseData;
+  if (response != nullptr && response->total_bytes > 0) {
+    wifiGatewayPingReceived = true;
+  }
+  wifiGatewayPingInProgress = false;
+  wifiGatewayPingFinished = true;
+}
+
 bool stationHasValidConnection() {
   return WiFi.status() == WL_CONNECTED && stationIpIsValid(WiFi.localIP());
 }
@@ -242,6 +521,49 @@ bool stationHasValidConnection() {
 bool sameIpAddress(const IPAddress& first, const IPAddress& second) {
   for (uint8_t i = 0; i < 4; i++) {
     if (first[i] != second[i]) return false;
+  }
+  return true;
+}
+
+void resetGatewayHealthForNewNetwork(const IPAddress& gateway) {
+  wifiKnownGateway = gateway;
+  wifiGatewayPingFailureCount = 0;
+  wifiGatewayInitialProbeFailures = 0;
+  wifiGatewayPingSupported = false;
+  lastWifiGatewayPingMs = millis();
+}
+
+bool startGatewayHealthPing() {
+  IPAddress gateway = WiFi.gatewayIP();
+  if (!stationIpIsValid(gateway) || wifiGatewayPingInProgress) return false;
+
+  if (stationIpIsValid(wifiKnownGateway) &&
+      !sameIpAddress(gateway, wifiKnownGateway)) {
+    LOG.print(F("Изменился шлюз Wi-Fi: "));
+    LOG.println(gateway);
+    resetGatewayHealthForNewNetwork(gateway);
+  } else if (!stationIpIsValid(wifiKnownGateway)) {
+    wifiKnownGateway = gateway;
+  }
+
+  memset(&wifiGatewayPingOption, 0, sizeof(wifiGatewayPingOption));
+  wifiGatewayPingOption.ip = gateway;
+  wifiGatewayPingOption.count = 1;
+  wifiGatewayPingOption.coarse_time = 1;
+  wifiGatewayPingOption.recv_function = wifiGatewayPingReceiveCallback;
+  wifiGatewayPingOption.sent_function = wifiGatewayPingFinishedCallback;
+
+  wifiGatewayPingTarget = gateway;
+  wifiGatewayPingReceived = false;
+  wifiGatewayPingFinished = false;
+  wifiGatewayPingInProgress = true;
+  wifiGatewayPingStartedMs = millis();
+  lastWifiGatewayPingMs = wifiGatewayPingStartedMs;
+
+  if (!ping_start(&wifiGatewayPingOption)) {
+    wifiGatewayPingInProgress = false;
+    wifiGatewayPingFinished = false;
+    return false;
   }
   return true;
 }
@@ -291,13 +613,13 @@ bool processPendingWiFiEvents() {
 
   if (hadGotIpEvent) {
     wifiGotIpEventPending = false;
+    lastWifiGatewayPingMs = millis();
+    wifiGatewayPingFailureCount = 0;
+    wifiGatewayInitialProbeFailures = 0;
     LOG.print(F("Wi-Fi получил IP-адрес: "));
     LOG.println(WiFi.localIP());
   }
 
-  // На некоторых версиях ядра ESP8266 WiFi.status() некоторое время может
-  // оставаться WL_CONNECTED после фактического обрыва. Событие отключения
-  // считаем приоритетным, если после него ещё не было события получения IP.
   return hadDisconnectEvent && !hadGotIpEvent;
 }
 
@@ -341,7 +663,8 @@ bool beginNextConfiguredNetwork() {
   }
 
   WiFi.mode(apFallbackActive ? WIFI_AP_STA : WIFI_STA);
-  keepWiFiRadioAwake();
+  WiFi.setAutoReconnect(false);
+  applyWiFiPowerMode();
   applyStaticIpConfig();
 
   LOG.print(F("Попытка подключения к Wi-Fi: "));
@@ -358,15 +681,20 @@ void WIFIinit() {
   registerWiFiEventHandlers();
 
   espMode = jsonReadtoInt(configSetup, "ESP_mode") ? 1 : 0;
+  powerSavingMode = (uint8_t)jsonReadtoInt(configSetup, "power_mode");
+  lightSleepSeconds = (uint16_t)jsonReadtoInt(configSetup, "light_sleep_seconds");
+  lightAwakeSeconds = (uint16_t)jsonReadtoInt(configSetup, "light_awake_seconds");
   int configuredTimeout = jsonReadtoInt(configSetup, "TimeOut");
   ESP_CONN_TIMEOUT = configuredTimeout > 0 ? configuredTimeout : 60;
   if (ESP_CONN_TIMEOUT > 300) ESP_CONN_TIMEOUT = 300;
 
   WiFi.persistent(false);
-  WiFi.setAutoReconnect(true);
+  WiFi.setAutoReconnect(false);
 
   LOG.print(F("Режим Wi-Fi: "));
   LOG.println(espMode == 0 ? F("точка доступа") : F("подключение к роутеру"));
+  LOG.print(F("Энергосбережение: "));
+  LOG.println(powerSavingModeText(powerSavingMode));
 
   if (espMode == 0) {
     StartAPMode();
@@ -376,10 +704,14 @@ void WIFIinit() {
   }
 
   WiFi.mode(WIFI_STA);
-  if (keepWiFiRadioAwake()) {
-    LOG.println(F("Энергосбережение Wi-Fi полностью выключено: радиомодуль всегда активен"));
+  if (applyWiFiPowerMode()) {
+    if (powerSavingMode == POWER_SAVE_OFF) {
+      LOG.println(F("Wi-Fi без сна: радиомодуль всегда активен"));
+    } else {
+      LOG.println(F("Совместимый режим: в активном окне Wi-Fi работает без сна"));
+    }
   } else {
-    LOG.println(F("Не удалось выключить энергосбережение Wi-Fi"));
+    LOG.println(F("Не удалось применить выбранный режим питания Wi-Fi"));
   }
   applyStaticIpConfig();
   configuredWiFiNetworks = addConfiguredNetworks();
@@ -394,7 +726,16 @@ void WIFIinit() {
 
   LOG.print(F("Подключение к Wi-Fi"));
   uint32_t startTime = millis();
-  uint32_t timeout = (uint32_t)ESP_CONN_TIMEOUT * 1000UL;
+  uint16_t connectionTimeoutSeconds = ESP_CONN_TIMEOUT;
+  if (compatiblePowerSavingActive() &&
+      lightLevel <= lightTreshold &&
+      connectionTimeoutSeconds > LIGHT_SLEEP_WIFI_TIMEOUT_SECONDS) {
+    connectionTimeoutSeconds = LIGHT_SLEEP_WIFI_TIMEOUT_SECONDS;
+    LOG.print(F(" (темно: тайм-аут "));
+    LOG.print(connectionTimeoutSeconds);
+    LOG.print(F(" с)"));
+  }
+  uint32_t timeout = (uint32_t)connectionTimeoutSeconds * 1000UL;
   while (wifiMulti.run() != WL_CONNECTED) {
     delay(500);
     yield();
@@ -411,12 +752,14 @@ void WIFIinit() {
     }
   }
 
-  keepWiFiRadioAwake();
+  applyWiFiPowerMode();
   routerConnected = true;
   apFallbackActive = false;
   apFallbackStartMs = 0;
   lastRouterRetryMs = millis();
   lastStationIP = WiFi.localIP();
+  wifiKnownGateway = WiFi.gatewayIP();
+  lastWifiGatewayPingMs = millis();
   LOG.println(F("\nWi-Fi подключён!"));
   LOG.print(F("SSID: "));
   LOG.println(WiFi.SSID());
@@ -444,7 +787,7 @@ void restartSSDP() {
 }
 
 void restartNetworkServices() {
-  keepWiFiRadioAwake();
+  applyWiFiPowerMode();
   HTTP.stop();
   delay(1);
   HTTP.begin();
@@ -453,17 +796,343 @@ void restartNetworkServices() {
   LOG.println(F("HTTP, UDP-поиск и SSDP перезапущены"));
 }
 
-void checkWiFiFallback() {
-  if (espMode == 0) {
-    apFallbackActive = false;
+void forceWiFiStackRecovery() {
+  uint32_t now = millis();
+  if (lastWiFiStackRecoveryMs != 0 &&
+      now - lastWiFiStackRecoveryMs < WIFI_STACK_RECOVERY_COOLDOWN) {
+    return;
+  }
+  lastWiFiStackRecoveryMs = now;
+  wifiRecoveryValidationPending = true;
+  wifiGatewayPingFailureCount = 0;
+
+  LOG.println(F("Сетевой стек Wi-Fi не отвечает. Запускается полное восстановление."));
+  if (wifiGatewayPingInProgress) wifiGatewayPingIgnoreResult = true;
+  stopMqttForNetworkRecovery();
+  HTTP.stop();
+  stopDiscoveryUdp();
+  stopSSDP();
+  WiFiClient::stopAll();
+
+  WiFi.setAutoReconnect(false);
+  WiFi.disconnect(false);
+  delay(20);
+  WiFi.mode(WIFI_OFF);
+  delay(100);
+
+  wifiDisconnectEventPending = false;
+  wifiGotIpEventPending = false;
+  routerConnected = false;
+  lastStationIP = IPAddress();
+  apFallbackStartMs = millis();
+  lastRouterRetryMs = millis();
+  wifiGatewayPingInProgress = false;
+  wifiGatewayPingFinished = false;
+  wifiGatewayPingReceived = false;
+  wifiWebHealthClient.stop(0);
+  wifiWebHealthTestInProgress = false;
+  wifiWebHealthResponseLength = 0;
+  lastWifiGatewayPingMs = millis();
+  lastWifiWebHealthTestMs = millis();
+
+  bool accessPointStarted = startAccessPoint(true);
+  apFallbackActive = accessPointStarted;
+  apFallbackStartMs = millis();
+  if (!accessPointStarted) {
+    LOG.println(F("Радиомодуль не создал точку доступа. Выполняется перезапуск ESP8266."));
+    Serial.flush();
+    delay(250);
+    ESP.restart();
     return;
   }
 
-  if (stationHasValidConnection()) {
+  restartNetworkServices();
+  wifiDisconnectEventPending = false;
+  wifiGotIpEventPending = false;
+  if (configuredWiFiNetworks > 0 && beginNextConfiguredNetwork()) {
+    LOG.println(F("Подключение к роутеру повторно запущено; сервисная AP пока оставлена"));
+  } else {
+    LOG.println(F("Сохранённых сетей нет; устройство остаётся в сервисной AP"));
+  }
+}
+
+void handleGatewayHealthResult(bool success) {
+  if (success) {
+    bool firstSuccess = !wifiGatewayPingSupported;
+    wifiGatewayPingSupported = true;
+    wifiGatewayInitialProbeFailures = 0;
+    wifiGatewayPingFailureCount = 0;
+    if (firstSuccess) {
+      LOG.println(F("Активный контроль Wi-Fi включён: шлюз отвечает"));
+    }
+    if (wifiRecoveryValidationPending) {
+      wifiRecoveryValidationPending = false;
+      LOG.println(F("Wi-Fi после восстановления проверен, шлюз доступен"));
+    }
+    return;
+  }
+
+  if (!wifiGatewayPingSupported) {
+    if (wifiGatewayInitialProbeFailures < 255) {
+      wifiGatewayInitialProbeFailures++;
+    }
+    if (wifiGatewayInitialProbeFailures == WIFI_HEALTH_INITIAL_PROBE_LIMIT) {
+      LOG.println(F("Шлюз не отвечает на Ping; проверка останется пассивной"));
+    }
+    return;
+  }
+
+  if (wifiGatewayPingFailureCount < 255) wifiGatewayPingFailureCount++;
+  LOG.print(F("Нет ответа от шлюза Wi-Fi: "));
+  LOG.print(wifiGatewayPingFailureCount);
+  LOG.print('/');
+  LOG.println(WIFI_HEALTH_FAILURE_LIMIT);
+
+  if (wifiGatewayPingFailureCount < WIFI_HEALTH_FAILURE_LIMIT) return;
+
+  if (wifiRecoveryValidationPending && apFallbackActive) {
+    wifiGatewayPingFailureCount = 0;
+    LOG.println(F("Роутер пока недоступен; сервисная точка доступа оставлена включённой"));
+    return;
+  }
+
+  forceWiFiStackRecovery();
+}
+
+IPAddress getWebHealthTarget() {
+  if (apFallbackActive) {
+    WiFiMode_t mode = WiFi.getMode();
+    if (mode == WIFI_AP || mode == WIFI_AP_STA) {
+      IPAddress apAddress = WiFi.softAPIP();
+      if (stationIpIsValid(apAddress)) return apAddress;
+    }
+  }
+  if (stationHasValidConnection()) return WiFi.localIP();
+  return IPAddress();
+}
+
+void finishWebHealthTest(bool success) {
+  wifiWebHealthClient.stop(0);
+  wifiWebHealthTestInProgress = false;
+  wifiWebHealthResponseLength = 0;
+
+  if (success) {
+    if (!wifiWebHealthTestSupported) {
+      LOG.println(F("Активный контроль TCP/Web включён"));
+    }
+    wifiWebHealthTestSupported = true;
+    wifiWebHealthInitialProbeFailures = 0;
+    wifiWebHealthFailureCount = 0;
+    return;
+  }
+
+  if (!wifiWebHealthTestSupported) {
+    if (wifiWebHealthInitialProbeFailures < 255) {
+      wifiWebHealthInitialProbeFailures++;
+    }
+    if (wifiWebHealthInitialProbeFailures == WIFI_HEALTH_INITIAL_PROBE_LIMIT) {
+      LOG.println(F("Внутренняя TCP-проверка недоступна; оставлена пассивной"));
+    }
+    return;
+  }
+
+  if (wifiWebHealthFailureCount < 255) wifiWebHealthFailureCount++;
+  LOG.print(F("Внутренняя проверка TCP/Web не прошла: "));
+  LOG.print(wifiWebHealthFailureCount);
+  LOG.print('/');
+  LOG.println(WIFI_HEALTH_FAILURE_LIMIT);
+  if (wifiWebHealthFailureCount < WIFI_HEALTH_FAILURE_LIMIT) return;
+
+  if (wifiRecoveryValidationPending && apFallbackActive) {
+    LOG.println(F("TCP/Web не восстановились через сервисную AP. Перезапуск ESP8266."));
+    Serial.flush();
+    delay(250);
+    ESP.restart();
+    return;
+  }
+  forceWiFiStackRecovery();
+}
+
+bool startWebHealthTest() {
+  if (wifiWebHealthTestInProgress) return false;
+  IPAddress target = getWebHealthTarget();
+  if (!stationIpIsValid(target)) return false;
+
+  wifiWebHealthClient.stop(0);
+  wifiWebHealthClient.setTimeout(250);
+  wifiWebHealthTarget = target;
+  lastWifiWebHealthTestMs = millis();
+  if (!wifiWebHealthClient.connect(target, 80)) {
+    return false;
+  }
+
+  size_t sent = wifiWebHealthClient.print(
+      F("GET /network_health HTTP/1.1\r\nHost: AirWick\r\nConnection: close\r\n\r\n"));
+  if (sent == 0) {
+    wifiWebHealthClient.stop(0);
+    return false;
+  }
+
+  wifiWebHealthResponseLength = 0;
+  wifiWebHealthResponse[0] = '\0';
+  wifiWebHealthTestStartedMs = millis();
+  wifiWebHealthTestInProgress = true;
+  return true;
+}
+
+void webHealthLoop() {
+  uint32_t now = millis();
+  if (wifiWebHealthTestInProgress) {
+    IPAddress currentTarget = getWebHealthTarget();
+    if (!stationIpIsValid(currentTarget) ||
+        !sameIpAddress(currentTarget, wifiWebHealthTarget)) {
+      wifiWebHealthClient.stop(0);
+      wifiWebHealthTestInProgress = false;
+      wifiWebHealthResponseLength = 0;
+      lastWifiWebHealthTestMs = now;
+      return;
+    }
+
+    while (wifiWebHealthClient.available() &&
+           wifiWebHealthResponseLength < sizeof(wifiWebHealthResponse) - 1) {
+      char c = (char)wifiWebHealthClient.read();
+      wifiWebHealthResponse[wifiWebHealthResponseLength++] = c;
+      wifiWebHealthResponse[wifiWebHealthResponseLength] = '\0';
+      if (c == '\n') {
+        bool success = strstr(wifiWebHealthResponse, " 204 ") != nullptr;
+        finishWebHealthTest(success);
+        return;
+      }
+    }
+
+    if (wifiWebHealthResponseLength >= sizeof(wifiWebHealthResponse) - 1 ||
+        now - wifiWebHealthTestStartedMs >= WIFI_WEB_SELF_TEST_TIMEOUT ||
+        (!wifiWebHealthClient.connected() && !wifiWebHealthClient.available())) {
+      finishWebHealthTest(false);
+    }
+    return;
+  }
+
+  uint32_t checkInterval = (wifiWebHealthTestSupported ||
+                           wifiWebHealthInitialProbeFailures < WIFI_HEALTH_INITIAL_PROBE_LIMIT) ?
+                           WIFI_WEB_SELF_TEST_INTERVAL : WIFI_HEALTH_PASSIVE_INTERVAL;
+  if (lastWifiWebHealthTestMs != 0 &&
+      now - lastWifiWebHealthTestMs < checkInterval) {
+    return;
+  }
+
+  IPAddress target = getWebHealthTarget();
+  if (!stationIpIsValid(target)) return;
+  if (!startWebHealthTest()) {
+    lastWifiWebHealthTestMs = now;
+    finishWebHealthTest(false);
+  }
+}
+
+void wifiHealthLoop() {
+  if (espMode != 1 || compatiblePowerSavingActive()) {
+    if (wifiGatewayPingInProgress) wifiGatewayPingIgnoreResult = true;
+    wifiGatewayPingInProgress = false;
+    wifiGatewayPingFinished = false;
+    if (wifiWebHealthTestInProgress) wifiWebHealthClient.stop(0);
+    wifiWebHealthTestInProgress = false;
+    wifiWebHealthResponseLength = 0;
+    return;
+  }
+
+  webHealthLoop();
+
+  uint32_t now = millis();
+  if (wifiGatewayPingInProgress) {
+    if (now - wifiGatewayPingStartedMs >= WIFI_HEALTH_PING_GUARD_MS) {
+      LOG.println(F("Контрольный Ping Wi-Fi завис"));
+      wifiGatewayPingIgnoreResult = true;
+      wifiGatewayPingInProgress = false;
+      wifiGatewayPingFinished = false;
+      if (wifiGatewayPingSupported) {
+        forceWiFiStackRecovery();
+      }
+    }
+    return;
+  }
+
+  if (wifiGatewayPingFinished) {
+    bool success = wifiGatewayPingReceived;
+    IPAddress currentGateway = WiFi.gatewayIP();
+    wifiGatewayPingFinished = false;
+    wifiGatewayPingReceived = false;
+    if (stationHasValidConnection() &&
+        sameIpAddress(currentGateway, wifiGatewayPingTarget)) {
+      handleGatewayHealthResult(success);
+    }
+    return;
+  }
+
+  if (!stationHasValidConnection()) {
+    wifiGatewayPingFailureCount = 0;
+    return;
+  }
+
+  uint32_t checkInterval = (wifiGatewayPingSupported ||
+                           wifiGatewayInitialProbeFailures < WIFI_HEALTH_INITIAL_PROBE_LIMIT) ?
+                           WIFI_HEALTH_CHECK_INTERVAL : WIFI_HEALTH_PASSIVE_INTERVAL;
+  if (lastWifiGatewayPingMs != 0 &&
+      now - lastWifiGatewayPingMs < checkInterval) {
+    return;
+  }
+
+  if (!startGatewayHealthPing()) {
+    lastWifiGatewayPingMs = now;
+    handleGatewayHealthResult(false);
+  }
+}
+
+void checkWiFiFallback() {
+  if (espMode == 0) {
+    apFallbackActive = false;
+    uint32_t now = millis();
+    if (lastAccessPointHealthCheckMs != 0 &&
+        now - lastAccessPointHealthCheckMs < WIFI_AP_HEALTH_CHECK_INTERVAL) {
+      return;
+    }
+    lastAccessPointHealthCheckMs = now;
+    WiFiMode_t mode = WiFi.getMode();
+    bool accessPointHealthy = (mode == WIFI_AP || mode == WIFI_AP_STA) &&
+                              stationIpIsValid(WiFi.softAPIP());
+    if (!accessPointHealthy) {
+      LOG.println(F("Точка доступа Wi-Fi остановлена. Выполняется восстановление."));
+      HTTP.stop();
+      stopDiscoveryUdp();
+      WiFiClient::stopAll();
+      if (!StartAPMode()) {
+        LOG.println(F("Не удалось восстановить AP. Выполняется перезапуск ESP8266."));
+        Serial.flush();
+        delay(250);
+        ESP.restart();
+        return;
+      }
+      restartNetworkServices();
+    }
+    return;
+  }
+
+  if (apFallbackActive) {
+    WiFiMode_t mode = WiFi.getMode();
+    bool accessPointHealthy = (mode == WIFI_AP || mode == WIFI_AP_STA) &&
+                              stationIpIsValid(WiFi.softAPIP());
+    if (!accessPointHealthy) {
+      apFallbackActive = false;
+      apFallbackStartMs = millis();
+      LOG.println(F("Сервисная точка доступа остановилась; будет создана повторно"));
+    }
+  }
+
+  if (stationHasValidConnection() && !wifiRecoveryValidationPending) {
     if (apFallbackActive) {
       if (WiFi.softAPdisconnect(true)) {
-        keepWiFiRadioAwake();
+        applyWiFiPowerMode();
         LOG.println(F("Wi-Fi восстановлен, временная точка доступа выключена."));
+        restartNetworkServices();
       } else {
         LOG.println(F("Не удалось выключить временную точку доступа"));
         return;
@@ -481,6 +1150,7 @@ void checkWiFiFallback() {
       if (startAccessPoint(true)) {
         apFallbackActive = true;
         lastRouterRetryMs = millis();
+        restartNetworkServices();
       } else {
         LOG.println(F("Не удалось запустить временную точку доступа"));
         apFallbackStartMs = millis();
@@ -542,7 +1212,7 @@ void wifiReconnect() {
     LOG.println(F(" байт"));
 
     lastRouterRetryMs = now;
-    keepWiFiRadioAwake();
+    applyWiFiPowerMode();
     if (WiFi.reconnect()) {
       LOG.println(F("Запущено немедленное переподключение к последней сети"));
     } else {

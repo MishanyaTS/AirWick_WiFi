@@ -6,6 +6,11 @@ WiFiUDP discoveryUdp;
 bool discoveryUdpStarted = false;
 uint32_t lastDiscoveryStartAttemptMs = 0;
 
+void stopDiscoveryUdp() {
+  discoveryUdp.stop();
+  discoveryUdpStarted = false;
+}
+
 IPAddress getActiveAirWickIP() {
   if (stationHasValidConnection()) {
     IPAddress stationIp = WiFi.localIP();
@@ -34,6 +39,7 @@ String getAirWickChipId() {
 }
 
 void sendDiscoveryInfo() {
+  notePowerSavingWebActivity();
   DynamicJsonDocument doc(512);
   WiFiMode_t mode = WiFi.getMode();
   doc["api"] = 1;
@@ -49,6 +55,8 @@ void sendDiscoveryInfo() {
   doc["ap_active"] = mode == WIFI_AP || mode == WIFI_AP_STA;
   doc["wifi_mode"] = mode == WIFI_AP ? "AP" :
                      mode == WIFI_STA ? "Station" : "AP+Station";
+  doc["power_mode"] = powerSavingMode;
+  doc["light_sleep_in"] = compatiblePowerSecondsUntilSleep();
 
   String response;
   serializeJson(doc, response);
@@ -56,6 +64,7 @@ void sendDiscoveryInfo() {
 }
 
 void sendDiscoveryVersion() {
+  notePowerSavingWebActivity();
   DynamicJsonDocument doc(384);
   doc["device"] = "AirWick";
   doc["name"] = getAirWickDiscoveryName();
@@ -122,6 +131,7 @@ void discoveryLoop() {
     String command(packet);
     command.trim();
     if (!command.startsWith("DISCOVER")) continue;
+    notePowerSavingWebActivity();
 
     IPAddress activeIp = getActiveAirWickIP();
     if (discoveryUdp.remoteIP() == activeIp) continue;

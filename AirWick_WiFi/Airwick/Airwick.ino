@@ -6,9 +6,16 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <ESP8266HTTPUpdateServer.h>
+#ifndef MQTT_MAX_PACKET_SIZE
+#define MQTT_MAX_PACKET_SIZE 768
+#endif
 #include <PubSubClient.h>
 #include "SystemLog.h"
 
+extern "C" {
+#include <user_interface.h>
+#include <ping.h>
+}
 #define LOG SystemLog::instance()
 
 // Объект для обнавления с web страницы
@@ -18,17 +25,58 @@ ESP8266WebServer HTTP(80);
 // Для файловой системы и встроенного редактора
 File fsUploadFile;
 
-#define AIRWICK_VERSION ("3.1")
+#define AIRWICK_VERSION ("3.2")
 
 ESP8266WiFiMulti wifiMulti;
+
+void notePowerSavingActivity();
+void notePowerSavingWebActivity();
+void releasePowerSavingWebActivity();
+void holdCompatiblePowerForMaintenance();
+void clearPowerSavingRuntimeState();
+bool compatiblePowerSavingActive();
+bool compatiblePowerTimersIdle();
+bool compatiblePowerSleepAllowed();
+uint32_t compatiblePowerSecondsUntilSleep();
+void initPowerSavingManagement();
+void powerSavingLoop();
+bool publishMqttState();
+bool stationHasValidConnection();
+bool StartAPMode();
+bool beginNextConfiguredNetwork();
+bool applyWiFiPowerMode();
+bool keepWiFiRadioAwake();
+bool applyStaticIpConfig();
+void stopDiscoveryUdp();
+void restartDiscoveryUdp();
+void stopSSDP();
+void wifiHealthLoop();
+void forceWiFiStackRecovery();
+void stopMqttForNetworkRecovery();
 
 const uint8_t AP_STATIC_IP[] = {192, 168, 4, 1};
 const uint32_t WIFI_FALLBACK_DELAY = 20000UL;
 const uint32_t WIFI_ROUTER_RETRY_INTERVAL = 15000UL;
 const uint32_t WIFI_DIAGNOSTIC_INTERVAL = 300000UL;
 const uint32_t MQTT_RECONNECT_INTERVAL = 10000UL;
+const uint32_t MQTT_PUBLISH_RETRY_INTERVAL = 5000UL;
+const uint16_t MQTT_TCP_CONNECT_TIMEOUT_MS = 1500;
+const uint8_t MQTT_TRANSPORT_FAILURE_LIMIT = 3;
 const uint32_t SPRAY_LOCKOUT_MS = 3000UL;
+const uint16_t SPRAY_PULSE_MS = 50;
 const uint32_t BUTTON_DEBOUNCE_MS = 60UL;
+const uint8_t POWER_SAVE_OFF = 0;
+const uint8_t POWER_SAVE_LIGHT = 1;
+const uint16_t LIGHT_SLEEP_MIN_SECONDS = 10;
+const uint16_t LIGHT_SLEEP_MAX_SECONDS = 300;
+const uint16_t LIGHT_AWAKE_MIN_SECONDS = 3;
+const uint16_t LIGHT_AWAKE_MAX_SECONDS = 60;
+const uint32_t LIGHT_SLEEP_HOLD_MS = 600000UL;
+const uint32_t LIGHT_SLEEP_WEB_SESSION_TIMEOUT_MS = 15000UL;
+const uint16_t LIGHT_SLEEP_WIFI_TIMEOUT_SECONDS = 8;
+const uint16_t LIGHT_SLEEP_MIN_SEGMENT_MS = 10;
+const uint16_t LIGHT_SLEEP_BUTTON_POLL_MS = 50;
+const uint8_t POWER_SAVING_SCHEMA_VERSION = 3;
 
 const int lightSensorPin = A0;  // Пин, к которому подключен датчик света
 const int motorPin = D1;        // Пин, к которому подключен мотор
@@ -64,6 +112,13 @@ IPAddress DNS2(8, 8, 8, 8);  // Резервный DNS
 bool staticIpConfigValid = false;
 
 uint8_t espMode = 0;
+uint8_t powerSavingMode = POWER_SAVE_OFF;
+uint16_t lightSleepSeconds = 20;
+uint16_t lightAwakeSeconds = 5;
+uint32_t lightIdleStartMs = 0;
+uint32_t lightLastWebActivityMs = 0;
+uint32_t lightSleepHoldStartMs = 0;
+bool lightSleepHoldActive = false;
 uint16_t ESP_CONN_TIMEOUT = 60;
 bool routerConnected = false;
 bool apFallbackActive = false;
@@ -95,6 +150,8 @@ bool mqttConfigValid = false;
 uint8_t mqttPeriod = 0;
 uint32_t mqttLastConnectingAttempt = 0;
 uint32_t mqttPublishTimer = 0;
+uint32_t mqttLastPublishFailureMs = 0;
+uint8_t mqttTransportFailureCount = 0;
 bool mqttNeedToPublish = false;
 bool mqttSprayEventPending = false;
 String mqttPendingSpraySource = "none";
@@ -122,11 +179,12 @@ bool activateSprayer(const __FlashStringHelper* message, const char* source) {
   sprayHasRun = true;
   lastSpraySource = source != nullptr ? source : "unknown";
   digitalWrite(motorPin, HIGH);
-  delay(50);
+  delay(SPRAY_PULSE_MS);
   digitalWrite(motorPin, LOW);
   mqttPendingSpraySource = lastSpraySource;
   mqttSprayEventPending = useMQTT && client.connected();
   mqttNeedToPublish = true;
+  notePowerSavingActivity();
   return true;
 }
 
@@ -170,6 +228,7 @@ bool activateSprayer(const __FlashStringHelper* message, const char* source) {
       saveConfig();
     }
     lightTreshold = (uint16_t)configuredLightTreshold;
+    lightLevel = analogRead(lightSensorPin);
     // Запускаем WIFI
     WIFIinit();
     // Быстрый поиск через Fiery Lamp Control: UDP DISCOVER + HTTP API.
@@ -193,6 +252,7 @@ bool activateSprayer(const __FlashStringHelper* message, const char* source) {
     // Настраиваем и запускаем HTTP интерфейс
     HTTP_init();
     lightLevel = analogRead(lightSensorPin);
+    initPowerSavingManagement();
     LOG.println(F("Инициализация AirWick завершена"));
   }
    
@@ -200,6 +260,7 @@ bool activateSprayer(const __FlashStringHelper* message, const char* source) {
     discoveryLoop();
     checkWiFiFallback();
     wifiReconnect();
+    wifiHealthLoop();
     HTTP.handleClient();
     delay(1);
     unsigned long currentTime = millis();
@@ -259,4 +320,5 @@ bool activateSprayer(const __FlashStringHelper* message, const char* source) {
       activateSprayer(F("Распыление!"), "auto");
     }
     mqttLoop();
+    powerSavingLoop();
   }

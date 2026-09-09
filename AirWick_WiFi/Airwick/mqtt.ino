@@ -136,17 +136,51 @@ void loadMqttConfig() {
 
   client.setServer(mqttServer.c_str(), mqttPort);
   client.setCallback(mqttCallback);
+  if (!client.setBufferSize(MQTT_MAX_PACKET_SIZE)) {
+    LOG.println(F("Не удалось увеличить буфер MQTT"));
+  }
+  espClient.setTimeout(MQTT_TCP_CONNECT_TIMEOUT_MS);
   client.setSocketTimeout(2);
 }
 
-void resetMqttConnection() {
-  if (client.connected()) {
+void closeMqttTransport(bool graceful, bool reconnectImmediately) {
+  bool wasConnected = client.connected();
+  if (graceful && wasConnected) {
     client.publish(mqttAvailabilityTopic.c_str(), "offline", true);
     client.disconnect();
-    LOG.println(F("MQTT отключён"));
   }
-  mqttLastConnectingAttempt = 0;
+
+  espClient.stop(0);
+  mqttLastConnectingAttempt = reconnectImmediately ? 0 : millis();
+  mqttLastPublishFailureMs = 0;
+  mqttTransportFailureCount = 0;
   mqttNeedToPublish = true;
+}
+
+void resetMqttConnection() {
+  bool wasConnected = client.connected();
+  closeMqttTransport(true, true);
+  if (wasConnected) LOG.println(F("MQTT отключён"));
+}
+
+void stopMqttForNetworkRecovery() {
+  bool hadTransport = client.connected() || espClient.connected();
+  closeMqttTransport(false, true);
+  if (hadTransport) {
+    LOG.println(F("MQTT-сокет принудительно закрыт для восстановления сети"));
+  }
+}
+
+void resetMqttAfterTransportFailure() {
+  LOG.println(F("MQTT-сокет не отвечает и будет создан заново"));
+  closeMqttTransport(false, false);
+}
+
+void noteMqttTransportFailure() {
+  if (mqttTransportFailureCount < 255) mqttTransportFailureCount++;
+  if (mqttTransportFailureCount >= MQTT_TRANSPORT_FAILURE_LIMIT) {
+    resetMqttAfterTransportFailure();
+  }
 }
 
 void init_mqtt() {
@@ -295,6 +329,7 @@ void handle_mqtt_period() {
 }
 
 void handle_mqtt_status() {
+  notePowerSavingWebActivity();
   DynamicJsonDocument status(768);
   String statusText;
   if (!useMQTT) {
@@ -325,11 +360,13 @@ void handle_mqtt_status() {
 
 void connectToMqtt() {
   if (!useMQTT || !mqttConfigValid || espMode != 1 ||
-      WiFi.status() != WL_CONNECTED) return;
+      !stationHasValidConnection()) return;
   if (mqttLastConnectingAttempt &&
       millis() - mqttLastConnectingAttempt < MQTT_RECONNECT_INTERVAL) return;
 
   mqttLastConnectingAttempt = millis();
+  // Предыдущая неудачная попытка могла оставить незавершённый TCP-контекст.
+  espClient.stop(0);
   LOG.print(F("Подключение к MQTT брокеру "));
   LOG.print(mqttServer);
   LOG.print(':');
@@ -348,10 +385,18 @@ void connectToMqtt() {
 
   if (connected) {
     LOG.println(F(" подключено"));
-    client.publish(mqttAvailabilityTopic.c_str(), "online", true);
-    client.subscribe(mqttCommandTopic.c_str(), 1);
-    client.subscribe("motor", 1); // Совместимость со старыми настройками.
+    espClient.keepAlive(30, 10, 3);
+    bool onlinePublished = client.publish(mqttAvailabilityTopic.c_str(), "online", true);
+    bool commandSubscribed = client.subscribe(mqttCommandTopic.c_str(), 1);
+    bool legacySubscribed = client.subscribe("motor", 1); // Совместимость со старыми настройками.
+    if (!onlinePublished || !commandSubscribed || !legacySubscribed) {
+      LOG.println(F("MQTT подключён, но инициализация сеанса не завершена"));
+      resetMqttAfterTransportFailure();
+      return;
+    }
     mqttLastConnectingAttempt = 0;
+    mqttLastPublishFailureMs = 0;
+    mqttTransportFailureCount = 0;
     mqttNeedToPublish = true;
   } else {
     LOG.print(F(" ошибка, код "));
@@ -359,6 +404,9 @@ void connectToMqtt() {
     LOG.print(F(" ("));
     LOG.print(mqttStateLabel(client.state()));
     LOG.println(')');
+    // PubSubClient может оставить TCP-контекст после ошибки DNS/connect.
+    espClient.stop(0);
+    if (mqttTransportFailureCount < 255) mqttTransportFailureCount++;
   }
 }
 
@@ -373,13 +421,18 @@ bool publishMqttSprayEvent() {
   serializeJson(event, payload);
   bool published = client.publish(mqttEventTopic.c_str(), payload.c_str(), false);
   mqttSprayEventPending = false;
-  if (!published) LOG.println(F("Ошибка публикации события распыления MQTT"));
+  if (!published) {
+    LOG.println(F("Ошибка публикации события распыления MQTT"));
+    noteMqttTransportFailure();
+  } else {
+    mqttTransportFailureCount = 0;
+  }
   return published;
 }
 
 bool publishMqttState() {
   if (!client.connected()) return false;
-  StaticJsonDocument<320> state;
+  StaticJsonDocument<640> state;
   state["online"] = true;
   state["light"] = lightLevel;
   state["threshold"] = lightTreshold;
@@ -387,28 +440,45 @@ bool publishMqttState() {
   state["pretimer"] = preTimer / 60000UL;
   state["interval"] = timerDuration / 60000UL;
   state["ip"] = WiFi.localIP().toString();
+  state["power_mode"] = powerSavingMode;
+  if (compatiblePowerSavingActive()) {
+    state["light_sleep_seconds"] = lightSleepSeconds;
+    state["light_awake_seconds"] = lightAwakeSeconds;
+    state["light_sleep_allowed"] = compatiblePowerSleepAllowed();
+    state["light_sleep_in"] = compatiblePowerSecondsUntilSleep();
+    state["sleep_type"] = "light_sleep";
+  }
   String payload;
   serializeJson(state, payload);
   if (!client.publish(mqttStateTopic.c_str(), payload.c_str(), true)) {
-    LOG.println(F("Ошибка публикации состояния MQTT"));
+    mqttLastPublishFailureMs = millis();
+    LOG.print(F("Ошибка публикации состояния MQTT, размер данных: "));
+    LOG.print(payload.length());
+    LOG.println(F(" байт"));
+    noteMqttTransportFailure();
     return false;
   }
+  mqttLastPublishFailureMs = 0;
+  mqttTransportFailureCount = 0;
   mqttNeedToPublish = false;
   mqttPublishTimer = millis();
   return true;
 }
 
 void mqttLoop() {
-  if (!useMQTT || espMode != 1 || WiFi.status() != WL_CONNECTED) {
+  if (!useMQTT || espMode != 1 || !stationHasValidConnection()) {
     if (!useMQTT) mqttSprayEventPending = false;
-    if (client.connected()) {
-      client.publish(mqttAvailabilityTopic.c_str(), "offline", true);
-      client.disconnect();
+    if (client.connected() || espClient.connected()) {
+      stopMqttForNetworkRecovery();
     }
     return;
   }
 
-  if (client.connected()) client.loop();
+  if (client.connected() && !client.loop()) {
+    LOG.println(F("MQTT keepalive не получил ответ"));
+    resetMqttAfterTransportFailure();
+    return;
+  }
   if (!client.connected()) {
     connectToMqtt();
     return;
@@ -418,7 +488,11 @@ void mqttLoop() {
 
   bool periodElapsed = mqttPeriod &&
       millis() - mqttPublishTimer >= (uint32_t)mqttPeriod * 1000UL;
-  if (mqttNeedToPublish || periodElapsed) publishMqttState();
+  bool publishRetryAllowed = mqttLastPublishFailureMs == 0 ||
+      millis() - mqttLastPublishFailureMs >= MQTT_PUBLISH_RETRY_INTERVAL;
+  if ((mqttNeedToPublish || periodElapsed) && publishRetryAllowed) {
+    publishMqttState();
+  }
 }
 
 void mqttCallback(char* receivedTopic, byte* payload, unsigned int length) {
@@ -437,6 +511,8 @@ void mqttCallback(char* receivedTopic, byte* payload, unsigned int length) {
   LOG.print(receivedTopic);
   LOG.print(F(", команда: "));
   LOG.println(command);
+
+  notePowerSavingActivity();
 
   if (command == "SPRAY" || command == "ON" || command == "1" ||
       command == "TRUE" || command == "P_ON") {

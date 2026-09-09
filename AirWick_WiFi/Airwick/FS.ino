@@ -47,6 +47,7 @@ String getContentType(String filename) {
 }
 
 bool handleFileRead(String path) {
+  notePowerSavingWebActivity();
   if (path.endsWith("/")) path += "index.htm";
   String contentType = getContentType(path);
   String pathWithGz = path + ".gz";
@@ -65,6 +66,7 @@ void handleFileUpload() {
   if (HTTP.uri() != "/edit") return;
   HTTPUpload& upload = HTTP.upload();
   if (upload.status == UPLOAD_FILE_START) {
+    holdCompatiblePowerForMaintenance();
     String filename = upload.filename;
     if (!filename.startsWith("/")) filename = "/" + filename;
     fsUploadFile = LittleFS.open(filename, "w");
@@ -79,6 +81,7 @@ void handleFileUpload() {
 }
 
 void handleFileDelete() {
+  notePowerSavingWebActivity();
   if (HTTP.args() == 0) return HTTP.send(500, "text/plain", "BAD ARGS");
   String path = HTTP.arg(0);
   if (path == "/")
@@ -91,6 +94,7 @@ void handleFileDelete() {
 }
 
 void handleFileCreate() {
+  notePowerSavingWebActivity();
   if (HTTP.args() == 0)
     return HTTP.send(500, "text/plain", "BAD ARGS");
   String path = HTTP.arg(0);
@@ -108,6 +112,7 @@ void handleFileCreate() {
 }
 
 void handleFileList() {
+  notePowerSavingWebActivity();
   if (!HTTP.hasArg("dir")) {
     HTTP.send(500, "text/plain", "BAD ARGS");
     return;

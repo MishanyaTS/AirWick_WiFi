@@ -25,7 +25,7 @@ ESP8266WebServer HTTP(80);
 // Для файловой системы и встроенного редактора
 File fsUploadFile;
 
-#define AIRWICK_VERSION ("3.2")
+#define AIRWICK_VERSION ("3.3")
 
 ESP8266WiFiMulti wifiMulti;
 
@@ -58,6 +58,9 @@ const uint8_t AP_STATIC_IP[] = {192, 168, 4, 1};
 const uint32_t WIFI_FALLBACK_DELAY = 20000UL;
 const uint32_t WIFI_ROUTER_RETRY_INTERVAL = 15000UL;
 const uint32_t WIFI_DIAGNOSTIC_INTERVAL = 300000UL;
+const uint32_t WIFI_PREVENTIVE_RECOVERY_INTERVAL = 21600000UL; // 6 часов
+const uint32_t WIFI_HEAP_GUARD_INTERVAL = 60000UL;              // 1 минута
+const uint32_t WIFI_CRITICAL_FREE_HEAP = 8000UL;
 const uint32_t MQTT_RECONNECT_INTERVAL = 10000UL;
 const uint32_t MQTT_PUBLISH_RETRY_INTERVAL = 5000UL;
 const uint16_t MQTT_TCP_CONNECT_TIMEOUT_MS = 1500;
@@ -128,6 +131,10 @@ uint32_t lastRouterRetryMs = 0;
 uint8_t configuredWiFiNetworks = 0;
 uint8_t nextWiFiNetworkIndex = 0;
 uint32_t lastWiFiDiagnosticMs = 0;
+uint32_t lastWiFiPreventiveRecoveryMs = 0;
+uint32_t lastWiFiHeapGuardMs = 0;
+uint32_t lastNetworkSuccessMs = 0;
+uint16_t wifiRecoveryCount = 0;
 IPAddress lastStationIP;
 WiFiEventHandler wifiGotIpEventHandler;
 WiFiEventHandler wifiDisconnectedEventHandler;

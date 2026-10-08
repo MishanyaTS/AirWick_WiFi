@@ -457,7 +457,7 @@ bool stationIpIsValid(const IPAddress& address) {
   return address[0] || address[1] || address[2] || address[3];
 }
 
-const uint32_t WIFI_HEALTH_CHECK_INTERVAL = 30000UL;
+const uint32_t WIFI_HEALTH_CHECK_INTERVAL = 60000UL;
 const uint32_t WIFI_HEALTH_PASSIVE_INTERVAL = 300000UL;
 const uint32_t WIFI_HEALTH_PING_GUARD_MS = 4000UL;
 const uint32_t WIFI_WEB_SELF_TEST_INTERVAL = 45000UL;
@@ -613,6 +613,7 @@ bool processPendingWiFiEvents() {
 
   if (hadGotIpEvent) {
     wifiGotIpEventPending = false;
+    lastNetworkSuccessMs = millis();
     lastWifiGatewayPingMs = millis();
     wifiGatewayPingFailureCount = 0;
     wifiGatewayInitialProbeFailures = 0;
@@ -690,6 +691,8 @@ void WIFIinit() {
 
   WiFi.persistent(false);
   WiFi.setAutoReconnect(false);
+  lastWiFiPreventiveRecoveryMs = millis();
+  lastWiFiHeapGuardMs = millis();
 
   LOG.print(F("Режим Wi-Fi: "));
   LOG.println(espMode == 0 ? F("точка доступа") : F("подключение к роутеру"));
@@ -803,10 +806,13 @@ void forceWiFiStackRecovery() {
     return;
   }
   lastWiFiStackRecoveryMs = now;
+  lastWiFiPreventiveRecoveryMs = now;
+  if (wifiRecoveryCount < 65535) wifiRecoveryCount++;
   wifiRecoveryValidationPending = true;
   wifiGatewayPingFailureCount = 0;
 
-  LOG.println(F("Сетевой стек Wi-Fi не отвечает. Запускается полное восстановление."));
+  LOG.print(F("Сетевой стек Wi-Fi: полное восстановление #"));
+  LOG.println(wifiRecoveryCount);
   if (wifiGatewayPingInProgress) wifiGatewayPingIgnoreResult = true;
   stopMqttForNetworkRecovery();
   HTTP.stop();
@@ -858,6 +864,7 @@ void forceWiFiStackRecovery() {
 
 void handleGatewayHealthResult(bool success) {
   if (success) {
+    lastNetworkSuccessMs = millis();
     bool firstSuccess = !wifiGatewayPingSupported;
     wifiGatewayPingSupported = true;
     wifiGatewayInitialProbeFailures = 0;
@@ -1040,9 +1047,34 @@ void wifiHealthLoop() {
     return;
   }
 
-  webHealthLoop();
-
   uint32_t now = millis();
+
+  if (lastWiFiHeapGuardMs == 0 ||
+      now - lastWiFiHeapGuardMs >= WIFI_HEAP_GUARD_INTERVAL) {
+    lastWiFiHeapGuardMs = now;
+    uint32_t freeHeap = ESP.getFreeHeap();
+    if (freeHeap < WIFI_CRITICAL_FREE_HEAP) {
+      LOG.print(F("Критически мало памяти для сети: "));
+      LOG.print(freeHeap);
+      LOG.println(F(" байт. Перезапуск ESP8266."));
+      Serial.flush();
+      delay(100);
+      ESP.restart();
+      return;
+    }
+  }
+
+  if (lastWiFiPreventiveRecoveryMs == 0) lastWiFiPreventiveRecoveryMs = now;
+  uint32_t lastNetworkProofMs = lastNetworkSuccessMs != 0 ?
+                                lastNetworkSuccessMs :
+                                lastWiFiPreventiveRecoveryMs;
+  if (stationHasValidConnection() &&
+      now - lastNetworkProofMs >= WIFI_PREVENTIVE_RECOVERY_INTERVAL) {
+    lastWiFiPreventiveRecoveryMs = now;
+    LOG.println(F("Сеть давно не подтверждала обмен данными. Восстановление Wi-Fi стека"));
+    forceWiFiStackRecovery();
+    return;
+  }
   if (wifiGatewayPingInProgress) {
     if (now - wifiGatewayPingStartedMs >= WIFI_HEALTH_PING_GUARD_MS) {
       LOG.println(F("Контрольный Ping Wi-Fi завис"));
@@ -1175,6 +1207,7 @@ void wifiReconnect() {
       apFallbackStartMs = 0;
       lastRouterRetryMs = now;
       lastStationIP = currentIP;
+      lastNetworkSuccessMs = now;
       LOG.println(ipChanged ? F("IP-адрес Wi-Fi изменился") : F("Wi-Fi восстановлен!"));
       LOG.print(F("SSID: "));
       LOG.println(WiFi.SSID());
@@ -1183,6 +1216,10 @@ void wifiReconnect() {
       LOG.print(F("RSSI: "));
       LOG.print(WiFi.RSSI());
       LOG.println(F(" dBm"));
+      if (wifiRecoveryValidationPending) {
+        wifiRecoveryValidationPending = false;
+        LOG.println(F("Wi-Fi после полного восстановления снова получил IP"));
+      }
       restartNetworkServices();
     }
 

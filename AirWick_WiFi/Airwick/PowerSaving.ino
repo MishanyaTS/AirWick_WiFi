@@ -40,8 +40,10 @@ void notePowerSavingActivity() {
 }
 
 void notePowerSavingWebActivity() {
+  uint32_t now = powerSavingNow();
+  lastNetworkSuccessMs = now;
   if (compatiblePowerSavingActive()) {
-    lightLastWebActivityMs = powerSavingNow();
+    lightLastWebActivityMs = now;
     notePowerSavingActivity();
   }
 }

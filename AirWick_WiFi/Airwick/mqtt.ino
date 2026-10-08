@@ -474,10 +474,13 @@ void mqttLoop() {
     return;
   }
 
-  if (client.connected() && !client.loop()) {
-    LOG.println(F("MQTT keepalive не получил ответ"));
-    resetMqttAfterTransportFailure();
-    return;
+  if (client.connected()) {
+    if (!client.loop()) {
+      LOG.println(F("MQTT keepalive не получил ответ"));
+      resetMqttAfterTransportFailure();
+      return;
+    }
+    lastNetworkSuccessMs = millis();
   }
   if (!client.connected()) {
     connectToMqtt();

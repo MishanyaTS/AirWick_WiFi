@@ -21,7 +21,7 @@ void HTTP_init(void) {
   // IP-адрес для пункта меню «Статусы устройств».
   HTTP.on("/wifi_ip", HTTP_GET, []() {
     notePowerSavingWebActivity();
-    DynamicJsonDocument doc(512);
+    DynamicJsonDocument doc(768);
     WiFiMode_t mode = WiFi.getMode();
     String ip;
 
@@ -45,6 +45,9 @@ void HTTP_init(void) {
     doc["light_sleep_allowed"] = compatiblePowerSleepAllowed();
     doc["light_sleep_in"] = compatiblePowerSecondsUntilSleep();
     doc["light_sleep_compatible"] = compatiblePowerSavingActive();
+    doc["wifi_recovery_count"] = wifiRecoveryCount;
+    doc["free_heap"] = ESP.getFreeHeap();
+    doc["heap_fragmentation"] = ESP.getHeapFragmentation();
 
     String response;
     serializeJson(doc, response);
@@ -53,13 +56,15 @@ void HTTP_init(void) {
 
   HTTP.on("/heap", HTTP_GET, []() {
     notePowerSavingWebActivity();
-    DynamicJsonDocument doc(384);
+    DynamicJsonDocument doc(512);
     doc["free"] = ESP.getFreeHeap();
     doc["max_block"] = ESP.getMaxFreeBlockSize();
     doc["fragmentation"] = ESP.getHeapFragmentation();
     doc["uptime"] = millis() / 1000UL;
     doc["power_mode"] = powerSavingMode;
     doc["light_sleep_in"] = compatiblePowerSecondsUntilSleep();
+    doc["wifi_recovery_count"] = wifiRecoveryCount;
+    doc["last_network_ok_ms"] = lastNetworkSuccessMs;
 
     String response;
     serializeJson(doc, response);
